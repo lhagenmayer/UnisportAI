@@ -108,9 +108,9 @@ def main() -> None:
         dt_label = "unbekannt"
     st.info(
         """
-        **Datenstand:** {ts} (letzter erfolgreicher Web‑Scrape).
+        **Datenstand:** {ts} .
         Quelle der Kurs‑ und Angebotsdaten: [Unisport HSG](https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html).
-        Hinweis: Diese Ansicht ist experimentell und ohne Gewähr.
+        Hinweis: Diese Anwendung ist experimentell und die Angaben sind ohne Gewähr.
         """.format(ts=dt_label)
     )
     # Kurzer Überblick für Nicht‑Techniker: Was passiert hier?
