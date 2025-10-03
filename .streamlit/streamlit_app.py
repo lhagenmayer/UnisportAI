@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 # Diese App zeigt die in Supabase gespeicherten Daten (Angebote, Kurse, Termine) an.
@@ -86,6 +87,15 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     st.caption("Streamlit + Supabase via st.connection")
+    # Hinweis zum Datenstand und zur Quelle (rechtlich unverbindlich, experimentell)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.info(
+        """
+        **Datenstand:** {now} (Abrufzeitpunkt dieser Ansicht).
+        Kursdaten basieren auf der offiziellen Quelle: [Unisport HSG](https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html).
+        Angaben ohne Gewähr; diese Anwendung ist experimentell und nicht rechtsverbindlich.
+        """.format(now=now_str)
+    )
     # Kurzer Überblick für Nicht‑Techniker: Was passiert hier?
     st.markdown(
         """
