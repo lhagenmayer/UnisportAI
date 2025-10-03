@@ -61,7 +61,26 @@ def main() -> None:
     # Seiten-Layout und Titel für die App festlegen.
     # layout="wide" gibt mehr Platz für Tabellen.
     st.set_page_config(page_title="UnisportAI", layout="wide")
-    st.title("UnisportAI – Datenansicht")
+    # Visueller Header mit Hintergrundbild (Universität St.Gallen) und Overlay-Text
+    st.markdown(
+        """
+        <div style="position: relative; height: 180px; border-radius: 10px; 
+                    background-image: url('https://www.unisg.ch/fileadmin/_processed_/3/c/csm_HSG_SQUARE_2_2426171a5d.jpg');
+                    background-size: cover; background-position: center; margin-bottom: 0.5rem;">
+          <div style="position:absolute; bottom:10px; left:12px; 
+                      background: rgba(0,0,0,0.55); color:#fff; padding:8px 12px; border-radius: 8px; 
+                      font-weight: 700; font-size: 20px;">
+            UnisportAI – Datenansicht
+          </div>
+          <div style="position:absolute; bottom:10px; right:12px; 
+                      background: rgba(0,0,0,0.55); color:#fff; padding:4px 8px; border-radius: 6px; 
+                      font-size: 12px;">
+            © Universität St.Gallen (HSG)
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption("Streamlit + Supabase via st.connection")
     # Kurzer Überblick für Nicht‑Techniker: Was passiert hier?
     st.markdown(
@@ -83,8 +102,20 @@ def main() -> None:
         """
     )
 
-    # Linke Seitenleiste: Team anzeigen (reine Deko / Credits)
+    # Linke Seitenleiste: Kurs-Hinweis + Team anzeigen
     with st.sidebar:
+        st.markdown(
+            """
+            **Hinweis zur Entstehung:**
+            Dieses Projekt und das Projektteam entstanden im Kurs
+            „Fundamentals and Methods of Computer Science“ an der Universität St.Gallen,
+            geleitet von Prof. Dr. Stephan Aier, Dr. Bernhard Bermeitinger und Prof. Dr. Simon Mayer.
+            
+            Status: noch in Entwicklung und (noch) nicht von den Professoren reviewed.
+            
+            Feature‑Wünsche oder Bugs? Bitte eines der Teammitglieder via LinkedIn kontaktieren (siehe unten).
+            """
+        )
         st.header("Projektteam")
         team = [
             (
