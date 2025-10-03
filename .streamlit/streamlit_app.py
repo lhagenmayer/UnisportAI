@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional
 
 # Diese App zeigt die in Supabase gespeicherten Daten (Angebote, Kurse, Termine) an.
@@ -106,12 +107,23 @@ def main() -> None:
         dt_label = str(last_run) if last_run else "unbekannt"
     except Exception:
         dt_label = "unbekannt"
+    # Schweizer Datums-/Zeitformat für den Datenstand herstellen (Europa/Zurich)
+    def format_ch_datetime(value: str) -> str:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+            dt_ch = dt.astimezone(ZoneInfo("Europe/Zurich"))
+            return dt_ch.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return str(value)
+
     st.info(
         """
-        **Datenstand:** {ts} .
+        **Datenstand:** {ts}.
         Quelle der Kurs‑ und Angebotsdaten: [Unisport HSG](https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html).
         Hinweis: Diese Anwendung ist experimentell und die Angaben sind ohne Gewähr.
-        """.format(ts=dt_label)
+        """.format(ts=(format_ch_datetime(dt_label) if dt_label != "unbekannt" else dt_label))
     )
     # Kurzer Überblick für Nicht‑Techniker: Was passiert hier?
     st.markdown(
@@ -225,11 +237,20 @@ def main() -> None:
         # Tab 3: Einzeltermine – alle Spalten anzeigen
         st.write("Kurs-Termine (legacy: kurs_termine)")
         data = safe_query(conn, "kurs_termine", "*")
+        # Datum in Schweizer Format DD.MM.YYYY für die Anzeige bringen
+        def format_ch_date(value: str) -> str:
+            try:
+                return datetime.strptime(str(value), "%Y-%m-%d").strftime("%d.%m.%Y")
+            except Exception:
+                return str(value)
+        for row in data:
+            if "datum" in row and row["datum"]:
+                row["datum"] = format_ch_date(row["datum"]) 
         col1, col2, col3 = st.columns(3)
         with col1:
             f_kurs = st.text_input("Filter Kursnr…", key="f4")
         with col2:
-            f_date = st.text_input("Filter Datum (YYYY-MM-DD)…", key="f5")
+            f_date = st.text_input("Filter Datum (TT.MM.JJJJ)…", key="f5")
         with col3:
             # Dieses Häkchen zeigt nur Termine mit canceled=true (also abgesagt)
             canceled_only = st.checkbox("Nur canceled=true", value=False)
