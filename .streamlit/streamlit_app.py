@@ -63,6 +63,25 @@ def main() -> None:
     st.set_page_config(page_title="UnisportAI", layout="wide")
     st.title("UnisportAI – Datenansicht")
     st.caption("Streamlit + Supabase via st.connection")
+    # Kurzer Überblick für Nicht‑Techniker: Was passiert hier?
+    st.markdown(
+        """
+        **Was passiert hier – in einfachen Worten?**
+
+        1. Drei Python‑Skripte scrapen die Unisport‑Webseiten (Angebote, Kurse, Termine, Standorte).
+           - Heute starten wir sie noch manuell im Terminal.
+           - Bald laufen sie automatisch nach Zeitplan (Schedule) über GitHub.
+
+        2. Die Daten landen in Supabase – das ist unsere gehostete Postgres‑Datenbank.
+
+        3. Diese Streamlit‑App lädt die Daten 1:1 aus Supabase und zeigt sie hier in Tabs an.
+           - Oben kannst du nach Name, Kursnummer, Datum oder "canceled" filtern.
+
+        4. Als Nächstes bereiten wir die Daten sinnvoll auf: Analysen, hilfreiche Visualisierungen,
+           Entscheidungs‑Dashboards, Kalender‑Integration (iCal‑Export), sowie synthetische Daten und
+           ML‑Time‑Series‑Training, um Prognosen zu ermöglichen.
+        """
+    )
 
     # Linke Seitenleiste: Team anzeigen (reine Deko / Credits)
     with st.sidebar:
