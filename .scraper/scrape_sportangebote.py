@@ -32,12 +32,16 @@ Hinweise für Anfänger:
   n lassen.
 """
 
+# Mini-Tutorial (leicht verständlich):
+# - Schritt 1: Angebote von der Hauptseite ziehen (extract_offers)
+# - Schritt 2: Für jedes Angebot Kurse lesen (extract_courses_for_offer)
+# - Schritt 3: Für jeden Kurs alle Termine lesen (extract_course_dates)
+# - Schritt 4: Alles idempotent (Upsert) in Supabase schreiben
+
 # Imports (Einsteiger-Erklärung, wofür wir sie in DIESEM Skript brauchen)
 # Stell dir die Imports wie Bausteine in Scratch vor – jeder macht eine bestimmte Sache gut.
 # - os: Um Umgebungsvariablen (SUPABASE_URL/KEY) aus dem System/.env zu lesen (unsere "Einstellungen")
 import os
-# - subprocess: Notfall-Lösung, um bei HTTPS-Problemen stattdessen "curl" zu verwenden
-import subprocess
 # - typing: Für Typ-Hinweise (List, Dict), damit der Code verständlicher ist (nur für Menschen/Werkzeuge)
 from typing import List, Dict
 # - datetime: Um Datumstexte (z. B. 03.10.2025) in ein maschinenlesbares ISO-Format umzuwandeln
@@ -58,24 +62,12 @@ from dotenv import load_dotenv
 
 def fetch_html(url: str) -> str:
     """
-    Lädt den HTML-Text einer URL herunter.
-
-    Warum zwei Wege (Requests und curl)?
-    - Manchmal gibt es auf macOS mit älteren Python-/SSL-Versionen Probleme bei HTTPS (TLS-Fehler).
-    - Dann weichen wir auf das Kommandozeilen-Tool "curl" aus, das oft robuster ist.
-    - Für euch heißt das: Wenn der eine Weg nicht klappt, probieren wir automatisch den anderen.
+    Lädt den HTML-Text einer URL herunter (einfach mit requests).
     """
-    try:
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
-        r.raise_for_status()
-        return r.text
-    except Exception:
-        proc = subprocess.run(
-            ["curl", "-fsSL", "-A", "Mozilla/5.0", url],
-            capture_output=True,
-            text=True,
-        )
-        return proc.stdout if proc.returncode == 0 else ""
+    # Browser-ähnlicher Header hilft, nicht aussortiert zu werden.
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    r.raise_for_status()
+    return r.text
 
 
 def extract_offers(source: str) -> List[Dict[str, str]]:
@@ -228,11 +220,11 @@ def main() -> None:
     #    Stattdessen schreibt ihr sie in eine Datei ".env" im Projektordner, z. B.:
     #      SUPABASE_URL=https://…
     #      SUPABASE_KEY=…
-    load_dotenv()
+    load_dotenv()  # holt SUPABASE_URL und SUPABASE_KEY aus .env (wenn vorhanden)
     # 2) Wir verwenden immer die Live-URL der Hauptseite (kein lokaler Pfad nötig)
     html_source = "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html"
     #    Wir holen die Angebote (Name + Link) und speichern sie in einer Liste von Dictionaries.
-    offers = extract_offers(html_source)
+    offers = extract_offers(html_source)  # Liste von {name, href}
 
     # 3) Mit Supabase verbinden (wir brauchen URL und API-Key aus der .env-Datei)
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -240,53 +232,43 @@ def main() -> None:
     if not supabase_url or not supabase_key:
         print("Bitte SUPABASE_URL und SUPABASE_KEY als ENV setzen.")
         return
-    supabase = create_client(supabase_url, supabase_key)
+    supabase = create_client(supabase_url, supabase_key)  # Verbindung zur DB
 
     # 4) Zuerst schreiben wir die Angebote in die Tabelle "sportangebote".
     #    Upsert bedeutet: Wenn ein Eintrag schon existiert (gleicher Schlüssel), wird er aktualisiert.
     #    Schlüssel hier ist die Spalte "href" (der Link zur Angebotsseite).
-    try:
-        supabase.table("sportangebote").upsert(offers, on_conflict="href").execute()
-        print(f"Supabase: {len(offers)} Angebote upserted (idempotent).")
-    except Exception as e:
-        print(f"Warnung: Upsert sportangebote fehlgeschlagen: {e}")
+    # Idempotent: gleiche href → wird aktualisiert statt dupliziert
+    supabase.table("sportangebote").upsert(offers, on_conflict="href").execute()
+    print(f"Supabase: {len(offers)} Angebote upserted (idempotent).")
 
     # 5) Als nächstes sammeln wir alle Kurse aller Angebote.
     #    Dafür besuchen wir für jedes Angebot die Detailseite und lesen die Kurstabelle.
     all_courses: List[Dict[str, str]] = []
-    for off in offers:
+    for off in offers:  # jede Angebotsseite besuchen
         all_courses.extend(extract_courses_for_offer(off))
     #    Dann schreiben wir alle Kurse in die Tabelle "sportkurse".
     #    Schlüssel ist die Kursnummer ("kursnr").
-    try:
-        supabase.table("sportkurse").upsert(all_courses, on_conflict="kursnr").execute()
-        print(f"Supabase: {len(all_courses)} Kurse upserted (idempotent).")
-    except Exception as e:
-        print(f"Warnung: Upsert sportkurse fehlgeschlagen: {e}")
+    # Idempotent: gleiche kursnr → wird aktualisiert
+    supabase.table("sportkurse").upsert(all_courses, on_conflict="kursnr").execute()
+    print(f"Supabase: {len(all_courses)} Kurse upserted (idempotent).")
 
     # 6) Jetzt kommen die exakten Termine pro Kurs.
     #    Für jeden Kurs gibt es einen Link (zeitraum_href) zu einer Unterseite mit allen geplanten Terminen.
     all_dates: List[Dict[str, str]] = []
-    for c in all_courses:
+    for c in all_courses:  # Termine-Seite pro Kurs besuchen
         if c.get("zeitraum_href") and c.get("kursnr"):
             all_dates.extend(extract_course_dates(c["kursnr"], c["zeitraum_href"]))
     #    Diese Termine schreiben wir zurück in "kurs_termine" (Legacy-Tabelle), jetzt mit location_name-Verknüpfung.
     if all_dates:
         # Vor Upsert: ungültige location_name bereinigen (NULL setzen, falls nicht in unisport_locations)
-        try:
-            loc_resp = supabase.table("unisport_locations").select("name").execute()
-            valid_names = { (r.get("name") or "").strip() for r in (loc_resp.data or []) if r.get("name") }
-        except Exception:
-            valid_names = set()
+        loc_resp = supabase.table("unisport_locations").select("name").execute()  # erlaubte Standorte holen
+        valid_names = { (r.get("name") or "").strip() for r in (loc_resp.data or []) if r.get("name") }
         for row in all_dates:
             ln = (row.get("location_name") or "").strip()
             if not ln or (valid_names and ln not in valid_names):
                 row["location_name"] = None
-        try:
-            supabase.table("kurs_termine").upsert(all_dates, on_conflict="kursnr,datum").execute()
-            print(f"Supabase: {len(all_dates)} Termine upserted (kurs_termine, idempotent).")
-        except Exception as e:
-            print(f"Warnung: Upsert kurs_termine fehlgeschlagen: {e}")
+        supabase.table("kurs_termine").upsert(all_dates, on_conflict="kursnr,datum").execute()  # Idempotent pro (kursnr,datum)
+        print(f"Supabase: {len(all_dates)} Termine upserted (kurs_termine, idempotent).")
     else:
         print("Hinweis: Keine Termine gefunden.")
 

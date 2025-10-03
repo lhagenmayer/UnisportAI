@@ -2,7 +2,7 @@
 Dieses Skript sammelt alle Unisport-Veranstaltungsorte (Locations) direkt von der
 Live-Webseite und speichert sie unmittelbar in Supabase (Tabelle `unisport_locations`).
 
-Für blutige Anfänger – was macht das Skript in einfachen Worten?
+Was macht das Skript in einfachen Worten?
 - Es lädt eine Unisport-Seite, auf der alle Orte aufgelistet sind.
 - In dieser Seite stehen zwei wichtige Informationsquellen:
   1) Eine JavaScript-Liste mit Markern ("var markers=[...]"), in der für viele Orte die
@@ -34,34 +34,33 @@ So führst du das Skript aus:
 Hinweis: Wenn die Variablen fehlen, wird nur die Anzahl gefundener Orte ausgegeben.
 """
 
+# Mini-Tutorial (leicht verständlich):
+# - Schritt 1: Wir laden die Webseite (fetch_html).
+# - Schritt 2: Wir lesen Koordinaten und Namen aus der JS-Liste (parse_markers).
+# - Schritt 3: Wir lesen Sportarten je Standort aus dem Menü (parse_location_sports).
+# - Schritt 4: Wir lesen Standort-Links und IDs (parse_location_links).
+# - Schritt 5: Wir führen alles pro Standort zusammen (merged).
+# - Schritt 6: Wir schreiben alles idempotent in Supabase (Upsert nach name).
+
 import json
 import os
 import re
 from typing import Dict, List, Optional
-import subprocess
 import requests
-import os
 from dotenv import load_dotenv
 
-try:
-    from supabase import create_client  # type: ignore
-except Exception:
-    create_client = None  # type: ignore
+from supabase import create_client  # type: ignore
 
-# Anfänger-Erklärung zu den Imports (wie "Bausteine" in Scratch):
+# Erklärung zu den Imports (wie "Bausteine" in Scratch):
 # - json: Wandelt Daten in Text (JSON) und zurück. Brauchen wir, um Listen/Objekte lesbar zu machen.
 # - os: Zugriff auf Umgebungsvariablen (z. B. SUPABASE_URL). Wie ein Rucksack mit Einstellungen.
 # - re: "Suchen & Finden" in Texten mit Mustern (Reguläre Ausdrücke). Wie eine Lupe mit Filter.
 # - typing (Dict, List, Optional): Nur für Menschen/Entwicklungswerkzeuge, um Datentypen zu beschreiben.
-# - subprocess & requests: Webseiten laden. requests ist der bequeme Weg; subprocess ist Plan B mit "curl".
+# - requests: Webseiten laden
 # - dotenv: Liest eine .env-Datei ein, damit wir Keys/URLs nicht in den Code schreiben müssen.
 # - supabase.create_client: Der Stecker zur Datenbank. Damit können wir Daten einfügen/lesen/ändern.
 
-# Optional BeautifulSoup import guarded for environments without bs4
-try:
-    from bs4 import BeautifulSoup  # type: ignore
-except Exception:  # pragma: no cover
-    BeautifulSoup = None  # type: ignore
+from bs4 import BeautifulSoup  # type: ignore
 
 
 # Live-Quelle: Veranstaltungsorte/Räume
@@ -71,17 +70,11 @@ SOURCE_URL = "https://www.sportprogramm.unisg.ch/unisg/cgi/webpage.cgi?orte"
 
 def fetch_html(url: str) -> str:
     """
-    Lädt den Text einer Webseite.
-    Plan A: requests (einfach und schnell)
-    Plan B: subprocess + curl (falls es auf manchen Systemen HTTPS-Probleme gibt)
+    Lädt den Text einer Webseite ausschließlich via requests.
     """
-    try:
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
-        r.raise_for_status()
-        return r.text
-    except Exception:
-        proc = subprocess.run(["curl", "-fsSL", "-A", "Mozilla/5.0", url], capture_output=True, text=True)
-        return proc.stdout if proc.returncode == 0 else ""
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    r.raise_for_status()
+    return r.text
 
 
 def parse_markers(html: str) -> List[Dict[str, object]]:
@@ -141,41 +134,21 @@ def parse_location_sports(html: str) -> Dict[str, List[str]]:
     aufgelistet sind. Wir laufen durch diese Liste und bauen ein Wörterbuch: Ort → [Sportarten].
     """
     mapping: Dict[str, List[str]] = {}
-    if BeautifulSoup is None:
+    soup = BeautifulSoup(html, "lxml")
+    menu = soup.select_one("div.bs_flmenu > ul")
+    if not menu:
         return mapping
-    if BeautifulSoup is not None:
-        soup = BeautifulSoup(html, "lxml")
-        menu = soup.select_one("div.bs_flmenu > ul")
-        if menu:
-            for li in menu.find_all("li", recursive=False):
-                name_el = li.select_one("span.bs_spname")
-                if not name_el:
-                    continue
-                loc_name = name_el.get_text(strip=True)
-                sports: List[str] = []
-                for sub in li.select("ul > li > a"):
-                    sport_name = sub.get_text(strip=True)
-                    if sport_name:
-                        sports.append(sport_name)
-                # Sicherstellen, dass der Standortname nicht als Sport auftaucht
-                mapping[loc_name] = [s for s in sports if s != loc_name]
-            return mapping
-
-    # Fallback ohne BeautifulSoup: robuste Regex-Auswertung auf dem Menüblock
-    m = re.search(r"<div class=[\"']bs_flmenu[\"'][^>]*>\s*<ul>(.*?)</ul>\s*</div>", html, re.S)
-    if not m:
-        return mapping
-    block = m.group(1)
-    # Finde alle Top-Level-Einträge: <li><a ...><span class="bs_spname">NAME</span>...</a>(<ul>...</ul>)?</li>
-    for href_rel, loc_name, ul_inner in re.findall(r"<li>\s*<a href='([^']+)'[^>]*>.*?<span class=\"bs_spname\">(.*?)</span>.*?</a>(?:\s*<ul>(.*?)</ul>)?\s*</li>", block, re.S):
-        name_clean = re.sub(r"<[^>]+>", "", loc_name).strip()
+    for li in menu.find_all("li", recursive=False):
+        name_el = li.select_one("span.bs_spname")
+        if not name_el:
+            continue
+        loc_name = name_el.get_text(strip=True)
         sports: List[str] = []
-        if ul_inner:
-            for sport_txt in re.findall(r"<a[^>]*>(.*?)</a>", ul_inner, re.S):
-                s_clean = re.sub(r"<[^>]+>", "", sport_txt).strip()
-                if s_clean:
-                    sports.append(s_clean)
-        mapping[name_clean] = [s for s in sports if s != name_clean]
+        for sub in li.select("ul > li > a"):
+            sport_name = sub.get_text(strip=True)
+            if sport_name:
+                sports.append(sport_name)
+        mapping[loc_name] = [s for s in sports if s != loc_name]
     return mapping
 
 
@@ -187,48 +160,19 @@ def parse_location_links(html: str, base_url: Optional[str] = None) -> Dict[str,
     die vollständige Adresse (href) und eine interne Kennung (spid) heraus.
     """
     out: Dict[str, Dict[str, Optional[str]]] = {}
-    if BeautifulSoup is None:
+    soup = BeautifulSoup(html, "lxml")
+    menu = soup.select_one("div.bs_flmenu > ul")
+    if not menu:
         return out
-    if BeautifulSoup is not None:
-        soup = BeautifulSoup(html, "lxml")
-        menu = soup.select_one("div.bs_flmenu > ul")
-        if menu:
-            effective_base = base_url or "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/"
-
-            from urllib.parse import urljoin, urlparse, parse_qs
-
-            for li in menu.find_all("li", recursive=False):
-                name_el = li.select_one("span.bs_spname")
-                if not name_el:
-                    continue
-                loc_name = name_el.get_text(strip=True)
-                top_a = li.select_one("a[href]")
-                href_rel = top_a.get("href") if top_a else None
-                full_href: Optional[str] = None
-                spid: Optional[str] = None
-                if href_rel:
-                    full_href = urljoin(effective_base, href_rel)
-                    try:
-                        q = parse_qs(urlparse(full_href).query)
-                        spid = (q.get("spid") or [None])[0]
-                    except Exception:
-                        spid = None
-                out[loc_name] = {"href": full_href, "spid": spid}
-            return out
-
-    # Fallback ohne BeautifulSoup
-    m = re.search(r"<div class=[\"']bs_flmenu[\"'][^>]*>\s*<ul>(.*?)</ul>\s*</div>", html, re.S)
-    if not m:
-        return out
-    # Links wie "webpage.cgi?spid=..." leben unter "/unisg/cgi/"
-    effective_base = base_url or "https://www.sportprogramm.unisg.ch/unisg/cgi/"
-    effective_base = base_url or "https://www.sportprogramm.unisg.ch/unisg/cgi/"
-    effective_base = base_url or "https://www.sportprogramm.unisg.ch/unisg/cgi/"
+    effective_base = base_url or "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/"
     from urllib.parse import urljoin, urlparse, parse_qs
-
-    block = m.group(1)
-    for href_rel, loc_name in re.findall(r"<li>\s*<a href='([^']+)'[^>]*>.*?<span class=\"bs_spname\">(.*?)</span>", block, re.S):
-        name_clean = re.sub(r"<[^>]+>", "", loc_name).strip()
+    for li in menu.find_all("li", recursive=False):
+        name_el = li.select_one("span.bs_spname")
+        if not name_el:
+            continue
+        loc_name = name_el.get_text(strip=True)
+        top_a = li.select_one("a[href]")
+        href_rel = top_a.get("href") if top_a else None
         full_href: Optional[str] = None
         spid: Optional[str] = None
         if href_rel:
@@ -238,7 +182,7 @@ def parse_location_links(html: str, base_url: Optional[str] = None) -> Dict[str,
                 spid = (q.get("spid") or [None])[0]
             except Exception:
                 spid = None
-        out[name_clean] = {"href": full_href, "spid": spid}
+        out[loc_name] = {"href": full_href, "spid": spid}
     return out
 
 

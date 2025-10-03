@@ -73,22 +73,15 @@ Angebote, Kurse, Termine, Ausfälle) maschinenlesbar und konsistent verfügbar m
    ```bash
    pip install -r requirements.txt
    ```
-2. Secrets lokal anlegen: Kopiere `.streamlit/secrets.example.toml` nach `.streamlit/secrets.toml` und trage `SUPABASE_URL` sowie `SUPABASE_KEY` ein:
+2. Secrets lokal anlegen: Lege `.streamlit/secrets.toml` an (oder kopiere von `.streamlit/secrets.example.toml`, falls vorhanden) und trage `SUPABASE_URL` sowie `SUPABASE_KEY` ein:
    ```toml
    [connections.supabase]
    SUPABASE_URL = "https://PROJECT_REF.supabase.co"
    SUPABASE_KEY = "<ANON ODER SERVICE KEY>"
    ```
-3. Beispiel-Tabelle in Supabase erstellen (SQL Editor):
-   ```sql
-   CREATE TABLE mytable (
-       name varchar(80),
-       pet  varchar(80)
-   );
-   INSERT INTO mytable VALUES ('Mary','dog'),('John','cat'),('Robert','bird');
-   ```
-4. Streamlit lokal starten:
+3. Streamlit lokal starten:
    ```bash
-   streamlit run streamlit_app.py
+streamlit run .streamlit/streamlit_app.py
    ```
-5. Deployment (Streamlit Community Cloud): `requirements.txt` ist vorbereitet. Secrets im Dashboard unter „Edit Secrets" hinterlegen (gleicher Inhalt wie lokale `secrets.toml`).
+4. Deployment (Streamlit Community Cloud): `requirements.txt` ist vorbereitet. Secrets im Dashboard unter „Edit Secrets" hinterlegen (gleicher Inhalt wie lokale `secrets.toml`).
+

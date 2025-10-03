@@ -1,10 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Environments
+.env
+.venv/
+venv/
+
 # Streamlit
 .streamlit/secrets.toml
 
-# Python
-__pycache__/
-*.pyc
-.venv/
-.env
+# OS / Editors
+.DS_Store
+.idea/
+.vscode/
 
-
+# Caches / Logs
+.cache/
+*.log
+# Tests
+tests/
