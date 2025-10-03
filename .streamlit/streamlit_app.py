@@ -61,19 +61,23 @@ def main() -> None:
     # Seiten-Layout und Titel für die App festlegen.
     # layout="wide" gibt mehr Platz für Tabellen.
     st.set_page_config(page_title="UnisportAI", layout="wide")
-    # Visueller Header mit Hintergrundbild (Universität St.Gallen) und Overlay-Text
+    # Visueller Header als Collage mit HSG-Bildern und Overlay-Text (größerer Banner)
     st.markdown(
         """
-        <div style="position: relative; height: 180px; border-radius: 10px; 
-                    background-image: url('https://www.unisg.ch/fileadmin/_processed_/3/c/csm_HSG_SQUARE_2_2426171a5d.jpg');
-                    background-size: cover; background-position: center; margin-bottom: 0.5rem;">
-          <div style="position:absolute; bottom:10px; left:12px; 
-                      background: rgba(0,0,0,0.55); color:#fff; padding:8px 12px; border-radius: 8px; 
-                      font-weight: 700; font-size: 20px;">
+        <div style="position: relative; height: 280px; border-radius: 10px; overflow: hidden; margin-bottom: 0.5rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 100%;">
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/5/c/csm_HSG_Bibliothek_1_182bdcd9cf.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/e/f/csm_HSG_Hauptgebaeude_2_e959f946be.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/d/2/csm_HSG_SQUARE_1_43e4002cea.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/3/c/csm_HSG_SQUARE_2_2426171a5d.jpg'); background-size:cover; background-position:center;"></div>
+          </div>
+          <div style="position:absolute; bottom:12px; left:12px; 
+                      background: rgba(0,0,0,0.55); color:#fff; padding:10px 14px; border-radius: 8px; 
+                      font-weight: 700; font-size: 22px;">
             UnisportAI – Datenansicht
           </div>
-          <div style="position:absolute; bottom:10px; right:12px; 
-                      background: rgba(0,0,0,0.55); color:#fff; padding:4px 8px; border-radius: 6px; 
+          <div style="position:absolute; bottom:12px; right:12px; 
+                      background: rgba(0,0,0,0.55); color:#fff; padding:6px 10px; border-radius: 6px; 
                       font-size: 12px;">
             © Universität St.Gallen (HSG)
           </div>
@@ -102,20 +106,8 @@ def main() -> None:
         """
     )
 
-    # Linke Seitenleiste: Kurs-Hinweis + Team anzeigen
+    # Linke Seitenleiste: Team anzeigen, darunter Kurs-Hinweis
     with st.sidebar:
-        st.markdown(
-            """
-            **Hinweis zur Entstehung:**
-            Dieses Projekt und das Projektteam entstanden im Kurs
-            „Fundamentals and Methods of Computer Science“ an der Universität St.Gallen,
-            geleitet von Prof. Dr. Stephan Aier, Dr. Bernhard Bermeitinger und Prof. Dr. Simon Mayer.
-            
-            Status: noch in Entwicklung und (noch) nicht von den Professoren reviewed.
-            
-            Feature‑Wünsche oder Bugs? Bitte eines der Teammitglieder via LinkedIn kontaktieren (siehe unten).
-            """
-        )
         st.header("Projektteam")
         team = [
             (
@@ -148,9 +140,24 @@ def main() -> None:
         for name, url, avatar in team:
             col1, col2 = st.columns([1, 4])
             with col1:
-                st.image(avatar, width=40)
+                st.image(avatar, width=72)
             with col2:
                 st.markdown(f"[{name}]({url})", unsafe_allow_html=True)
+
+        # Hinweis unterhalb der Projektmitglieder
+        st.markdown(
+            """
+            ---
+            **Hinweis zur Entstehung:**
+            Dieses Projekt und das Projektteam entstanden im Kurs
+            „Fundamentals and Methods of Computer Science“ an der Universität St.Gallen,
+            geleitet von Prof. Dr. Stephan Aier, Dr. Bernhard Bermeitinger und Prof. Dr. Simon Mayer.
+
+            Status: noch in Entwicklung und (noch) nicht von den Professoren reviewed.
+
+            Feature‑Wünsche oder Bugs? Bitte eines der Teammitglieder via LinkedIn kontaktieren (siehe oben).
+            """
+        )
 
     # Supabase-Verbindung herstellen (aus den Secrets)
     conn = get_supabase_conn()
