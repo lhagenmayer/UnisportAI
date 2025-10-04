@@ -30,24 +30,35 @@ Angebote, Kurse, Termine, Ausfälle) maschinenlesbar und konsistent verfügbar m
    - Sucht die passenden `kurs_termine` (bzw. `course_dates`) in Supabase und markiert sie mit `canceled=true`.
    - Nutzt Kursnamen-Mapping (`sportkurse.offer_name` → `kursnr`) und Zeitvergleich (Startzeit zu HHMM normalisiert).
 
-### Reihenfolge – so benutzt du die Skripte
+### Automatisierte Ausführung via GitHub Actions
+
+Die drei Scraper-Skripte laufen automatisch über GitHub Actions:
+- **Zeitplan**: Täglich um 6:00 Uhr UTC (7:00 Uhr CET / 8:00 Uhr CEST)
+- **Workflow**: `.github/workflows/scraper.yml`
+- **Manueller Start**: Kann auch manuell über die GitHub Actions UI gestartet werden
+
+**Voraussetzung**: GitHub Secrets müssen konfiguriert sein:
+- `SUPABASE_URL`: URL deines Supabase-Projekts
+- `SUPABASE_KEY`: Service Role Key (mit Schreibrechten)
+
+### Manuelle Ausführung – so benutzt du die Skripte lokal
 1. Locations laden (einmalig oder bei Änderungen):
    ```bash
    export SUPABASE_URL=...
    export SUPABASE_KEY=...
-   python3 extract_locations_from_html.py
+   python3 .scraper/extract_locations_from_html.py
    ```
 2. Sportprogramm laden (regelmäßig, z. B. täglich):
    ```bash
    export SUPABASE_URL=...
    export SUPABASE_KEY=...
-   python3 scrape_sportangebote.py
+   python3 .scraper/scrape_sportangebote.py
    ```
 3. Ausfälle aktualisieren (nach Bedarf):
    ```bash
    export SUPABASE_URL=...
    export SUPABASE_KEY=...
-   python3 update_cancellations.py
+   python3 .scraper/update_cancellations.py
    ```
 
 ### Wie hängen die Teile zusammen?
