@@ -4,6 +4,7 @@ from data.supabase_client import get_offers_with_stats, count_upcoming_events_pe
 from data.filters import filter_offers, filter_offers_by_events, filter_events
 from data.state_manager import get_filter_state, set_filter_state
 from data.shared_sidebar import render_shared_sidebar
+from data.rating import render_sportangebot_rating_widget, get_average_rating_for_offer
 
 st.title('🎯 Sports Overview')
 st.markdown('### Browse all available activities')
@@ -162,9 +163,25 @@ for offer in filtered_offers:
             st.caption(' • '.join(info_parts))
     
     with col2:
-        if st.button("View", key=f"view_{offer['href']}", use_container_width=True):
-            st.session_state['state_selected_offer'] = offer
-            st.switch_page("pages/details.py")
+        col2a, col2b = st.columns([1, 1])
+        with col2a:
+            if st.button("View", key=f"view_{offer['href']}", use_container_width=True):
+                st.session_state['state_selected_offer'] = offer
+                st.switch_page("pages/details.py")
+        
+        # Rating button nur wenn eingeloggt
+        if st.user.is_logged_in:
+            with col2b:
+                rating_info = get_average_rating_for_offer(offer['href'])
+                if rating_info['count'] > 0:
+                    st.button(f"⭐ {rating_info['avg']}", 
+                              key=f"rating_{offer['href']}", 
+                              use_container_width=True,
+                              help=f"{rating_info['count']} Bewertungen")
+        
+        # Rating-Widget
+        if st.user.is_logged_in:
+            render_sportangebot_rating_widget(offer['href'])
     
     # Add expander with upcoming dates for each activity
     with st.expander("📅 Upcoming Dates", expanded=False):

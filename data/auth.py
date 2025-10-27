@@ -27,10 +27,9 @@ def show_login_page():
             st.markdown("""
             1. Erstellen Sie OAuth-Anmeldedaten in der [Google Cloud Console](https://console.cloud.google.com/)
             2. Fügen Sie folgende Redirect URIs hinzu:
-               - Für lokale Entwicklung: `http://localhost:8501/oauth2callback`
-               - Für lokale Entwicklung (alternative Ports): `http://localhost:8502/oauth2callback`, `http://localhost:8503/oauth2callback`
+               - Für lokale Entwicklung: `http://localhost:8501/oauth2callback` bis Port 8510
                - Für Production: `https://unisportai.streamlit.app/oauth2callback`
-            3. Aktualisieren Sie Ihre `secrets.toml` Datei
+            3. `redirect_uri` wird automatisch von Streamlit erkannt - NICHT in secrets.toml eintragen!
             """)
     
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -170,8 +169,8 @@ def sync_user_to_supabase(supabase_client):
                 'id': user_uuid,
                 'sub': user_sub,
                 'email': user_email,
-                'name': user_name,
                 'full_name': user_name,  # Maintain backward compatibility
+                'name': user_name,
                 'given_name': getattr(st.user, 'given_name', None),
                 'family_name': getattr(st.user, 'family_name', None),
                 'picture': getattr(st.user, 'picture', None),

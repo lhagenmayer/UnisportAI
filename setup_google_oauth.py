@@ -85,17 +85,16 @@ def print_manual_setup_instructions():
    - Anwendungstyp: "Webanwendung"
    - Name: "Unisport Streamlit App"
    
-   Autorierte Umleitungs-URIs hinzufügen:
-   
-   ✅ FÜR LOKALE ENTWICKLUNG (Port 8501-8505):
+   ✅ Autorierte Umleitungs-URIs hinzufügen:
       http://localhost:8501/oauth2callback
       http://localhost:8502/oauth2callback
       http://localhost:8503/oauth2callback
       http://localhost:8504/oauth2callback
       http://localhost:8505/oauth2callback
-   
-   ✅ FÜR PRODUCTION:
       https://unisportai.streamlit.app/oauth2callback
+   
+   ❌ Autorierte JavaScript-Quellen: LEER LASSEN (nicht benötigt)
+   ❌ Autorisierte Ursprünge: LEER LASSEN (nicht benötigt)
    
    - Klicken Sie auf "ERSTELLEN"
 

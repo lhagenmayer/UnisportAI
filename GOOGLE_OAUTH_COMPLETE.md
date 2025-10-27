@@ -59,7 +59,7 @@ Sie müssen noch in der Google Cloud Console konfigurieren:
    - Application type: "Web application"
    - Name: "Unisport Streamlit"
    
-   **Autorierte Redirect URIs**:
+   **Autorierte Redirect URIs** (hier alle URIs hinzufügen):
    ```
    http://localhost:8501/oauth2callback
    http://localhost:8502/oauth2callback
@@ -68,6 +68,11 @@ Sie müssen noch in der Google Cloud Console konfigurieren:
    http://localhost:8505/oauth2callback
    https://unisportai.streamlit.app/oauth2callback
    ```
+   
+   ⚠️ **Wichtig**: 
+   - "Autorisierte JavaScript-Quellen" Feld **LEER LASSEN** (nicht benötigt für Streamlit)
+   - Nur "Autorisierte Redirect URIs" ausfüllen
+   - "Autorisierte Ursprünge" kann ebenfalls leer bleiben
 
 4. **Credentials kopieren**
    - Client ID kopieren

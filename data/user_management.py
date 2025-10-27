@@ -13,17 +13,27 @@ from data.supabase_client import get_supabase_client
 def is_admin() -> bool:
     """Prüft ob der aktuelle User ein Admin ist"""
     if not st.user.is_logged_in:
+        if "is_admin" in st.session_state:
+            del st.session_state["is_admin"]
         return False
+    
+    # Cache das Ergebnis im Session-State für Konsistenz über Seiten-Neuladungen
+    if "is_admin" in st.session_state:
+        return st.session_state["is_admin"]
     
     try:
         client = get_supabase_client()
         user_sub = get_user_sub()
         if not user_sub:
+            st.session_state["is_admin"] = False
             return False
             
         user = client.table("users").select("role").eq("sub", user_sub).execute()
         if user.data and len(user.data) > 0:
-            return user.data[0].get("role") == "admin"
+            is_admin_result = user.data[0].get("role") == "admin"
+            st.session_state["is_admin"] = is_admin_result
+            return is_admin_result
+        st.session_state["is_admin"] = False
         return False
     except Exception:
         return False
@@ -47,19 +57,77 @@ def get_user_profile(user_sub: Optional[str] = None) -> Optional[Dict[str, Any]]
 
 def update_user_preferences(preferences: Dict[str, Any]) -> bool:
     """Aktualisiert die User-Präferenzen"""
+    import json
     user_sub = get_user_sub()
     if not user_sub:
         return False
     
     try:
         client = get_supabase_client()
+        # Konvertiere dict zu JSON String
+        preferences_json = json.dumps(preferences)
+        
         client.table("users").update({
-            "preferences": preferences,
+            "preferences": preferences_json,
             "updated_at": datetime.now().isoformat()
         }).eq("sub", user_sub).execute()
         return True
     except Exception as e:
         st.error(f"Fehler beim Aktualisieren der Präferenzen: {e}")
+        return False
+
+
+def get_user_favorites() -> list:
+    """Lädt die Lieblings-Sportarten des aktuellen Users aus der Datenbank"""
+    user_sub = get_user_sub()
+    if not user_sub:
+        return []
+    
+    try:
+        client = get_supabase_client()
+        user = client.table("users").select("id").eq("sub", user_sub).execute()
+        
+        if not user.data:
+            return []
+        
+        user_id = user.data[0]['id']
+        
+        favorites = client.table("user_favorites").select("sportangebot_href").eq("user_id", user_id).execute()
+        return [fav['sportangebot_href'] for fav in favorites.data]
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Favoriten: {e}")
+        return []
+
+
+def update_user_favorites(favorite_hrefs: list) -> bool:
+    """Aktualisiert die Lieblings-Sportarten des Users in der Datenbank"""
+    user_sub = get_user_sub()
+    if not user_sub:
+        return False
+    
+    try:
+        client = get_supabase_client()
+        user = client.table("users").select("id").eq("sub", user_sub).execute()
+        
+        if not user.data:
+            return False
+        
+        user_id = user.data[0]['id']
+        
+        # Lösche alle bestehenden Favoriten
+        client.table("user_favorites").delete().eq("user_id", user_id).execute()
+        
+        # Füge neue Favoriten hinzu
+        if favorite_hrefs:
+            favorites_data = [
+                {"user_id": user_id, "sportangebot_href": href}
+                for href in favorite_hrefs
+            ]
+            client.table("user_favorites").insert(favorites_data).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Aktualisieren der Favoriten: {e}")
         return False
 
 
@@ -98,7 +166,7 @@ def render_user_profile_page():
         return
     
     # Layout mit Tabs
-    tab1, tab2, tab3 = st.tabs(["📋 Informationen", "⚙️ Präferenzen", "📊 Aktivität"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Informationen", "⚙️ Präferenzen", "📅 Kalender", "📊 Aktivität"])
     
     with tab1:
         st.subheader("Benutzerinformationen")
@@ -119,14 +187,44 @@ def render_user_profile_page():
     with tab2:
         st.subheader("Präferenzen")
         
-        # Lade aktuelle Präferenzen
-        preferences = profile.get('preferences', {}) or {}
+        # Lade aktuelle Präferenzen (für andere Einstellungen)
+        import json
+        preferences_raw = profile.get('preferences', {}) or {}
         
-        # Beispiel-Präferenzen
+        # Parse JSON falls es ein String ist
+        if isinstance(preferences_raw, str):
+            try:
+                preferences = json.loads(preferences_raw)
+            except json.JSONDecodeError:
+                preferences = {}
+        else:
+            preferences = preferences_raw or {}
+        
+        # Lade Sportarten aus der Datenbank
+        try:
+            from data.supabase_client import get_offers_with_stats
+            sportangebote = get_offers_with_stats()
+            # Erstelle Mapping von Name zu href
+            sportarten_dict = {sport['name']: sport['href'] for sport in sportangebote}
+            sportarten_options = list(sportarten_dict.keys())
+        except Exception as e:
+            st.error(f"Fehler beim Laden der Sportarten: {e}")
+            sportarten_dict = {}
+            sportarten_options = ["Fitness", "Yoga", "Schwimmen", "Fußball", "Basketball"]
+        
+        # Lade Favoriten aus der Datenbank (als hrefs)
+        current_favorite_hrefs = get_user_favorites()
+        # Konvertiere hrefs zu Namen für das Multiselect
+        current_favorite_names = [
+            sport['name'] for sport in sportangebote 
+            if sport['href'] in current_favorite_hrefs
+        ] if sportangebote else []
+        
+        # Lieblings-Sportarten aus Datenbank (als Name)
         favorite_sports = st.multiselect(
             "Lieblings-Sportarten",
-            options=["Fitness", "Yoga", "Schwimmen", "Fußball", "Basketball"],
-            default=preferences.get('favorite_sports', [])
+            options=sportarten_options,
+            default=current_favorite_names
         )
         
         notifications = st.checkbox(
@@ -141,16 +239,47 @@ def render_user_profile_page():
         )
         
         if st.button("Präferenzen speichern"):
-            new_preferences = {
-                'favorite_sports': favorite_sports,
-                'notifications': notifications,
-                'theme': theme
-            }
-            if update_user_preferences(new_preferences):
+            # Speichere Favoriten als hrefs in der Datenbank
+            favorite_hrefs = [sportarten_dict[sport] for sport in favorite_sports if sport in sportarten_dict]
+            if update_user_favorites(favorite_hrefs):
+                # Speichere andere Präferenzen
+                new_preferences = {
+                    'notifications': notifications,
+                    'theme': theme
+                }
+                update_user_preferences(new_preferences)
                 st.success("✅ Präferenzen wurden gespeichert!")
                 st.rerun()
+            else:
+                st.error("Fehler beim Speichern der Favoriten")
     
+    # New tab for calendar and additional settings
     with tab3:
+        st.subheader("📅 Privater Kalender")
+        
+        # iCal URL Eingabe
+        ical_url = profile.get('ical_url', '') or ''
+        new_ical_url = st.text_input(
+            "iCal URL",
+            value=ical_url,
+            help="Geben Sie die URL zu Ihrem privaten Kalender (iCal) ein"
+        )
+        
+        if st.button("Kalender speichern"):
+            try:
+                client = get_supabase_client()
+                user_sub = get_user_sub()
+                client.table("users").update({
+                    "ical_url": new_ical_url,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("sub", user_sub).execute()
+                st.success("✅ Kalender-URL wurde gespeichert!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Fehler beim Speichern: {e}")
+    
+    # Activity tab
+    with tab4:
         st.subheader("Meine Aktivität")
         
         # Zeige Session-Aktivitäten
@@ -231,22 +360,94 @@ def render_admin_panel():
                         except Exception as e:
                             st.error(f"Fehler: {e}")
         
-        # Statistiken
-        st.subheader("📊 Statistiken")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Gesamt Benutzer", len(users.data))
-        with col2:
-            active_users = sum(1 for u in users.data if u.get('is_active', True))
-            st.metric("Aktive Benutzer", active_users)
-        with col3:
-            admins = sum(1 for u in users.data if u.get('role') == 'admin')
-            st.metric("Admins", admins)
-        with col4:
-            recent_logins = sum(1 for u in users.data if u.get('last_login'))
-            st.metric("Mit Login", recent_logins)
-            
     except Exception as e:
         st.error(f"Fehler beim Laden der Benutzer: {e}")
+
+
+def submit_sportangebot_rating(sportangebot_href: str, rating: int, comment: str = "") -> bool:
+    """Speichert eine Bewertung für ein Sportangebot"""
+    user_sub = get_user_sub()
+    if not user_sub:
+        return False
+    
+    try:
+        import json
+        client = get_supabase_client()
+        
+        # Hole user_id zuerst
+        user_id = st.session_state.get("user_id")
+        if not user_id:
+            # Get user_id from sub
+            user = client.table("users").select("id").eq("sub", user_sub).execute()
+            if user.data:
+                user_id = user.data[0]['id']
+                st.session_state["user_id"] = user_id
+            else:
+                return False
+        
+        # Prüfe ob User bereits eine Bewertung hat
+        existing = client.table("sportangebote_user_ratings").select("*").eq("user_id", user_id).eq("sportangebot_href", sportangebot_href).execute()
+        
+        rating_data = {
+            "user_id": user_id,
+            "sportangebot_href": sportangebot_href,
+            "rating": rating,
+            "comment": comment,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        if existing.data:
+            # Update existing rating
+            client.table("sportangebote_user_ratings").update(rating_data).eq("user_id", user_id).eq("sportangebot_href", sportangebot_href).execute()
+        else:
+            # Create new rating
+            rating_data["created_at"] = datetime.now().isoformat()
+            client.table("sportangebote_user_ratings").insert(rating_data).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern der Bewertung: {e}")
+        return False
+
+
+def submit_trainer_rating(trainer_name: str, rating: int, comment: str = "") -> bool:
+    """Speichert eine Bewertung für einen Trainer"""
+    user_sub = get_user_sub()
+    if not user_sub:
+        return False
+    
+    try:
+        client = get_supabase_client()
+        
+        # Get user_id
+        user = client.table("users").select("id").eq("sub", user_sub).execute()
+        if not user.data:
+            return False
+        
+        user_id = user.data[0]['id']
+        st.session_state["user_id"] = user_id
+        
+        # Prüfe ob User bereits eine Bewertung hat
+        existing = client.table("trainer_user_ratings").select("*").eq("user_id", user_id).eq("trainer_name", trainer_name).execute()
+        
+        rating_data = {
+            "user_id": user_id,
+            "trainer_name": trainer_name,
+            "rating": rating,
+            "comment": comment,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        if existing.data:
+            # Update existing rating
+            client.table("trainer_user_ratings").update(rating_data).eq("user_id", user_id).eq("trainer_name", trainer_name).execute()
+        else:
+            # Create new rating
+            rating_data["created_at"] = datetime.now().isoformat()
+            client.table("trainer_user_ratings").insert(rating_data).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern der Bewertung: {e}")
+        return False
 

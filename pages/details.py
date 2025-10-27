@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta
 from data.supabase_client import get_events_for_offer, get_all_events
 from data.state_manager import get_selected_offers_for_page2, get_filter_state, set_filter_state
 from data.shared_sidebar import render_shared_sidebar
+from data.rating import render_sportangebot_rating_widget, render_trainer_rating_widget, get_average_rating_for_offer, get_average_rating_for_trainer
 
 # Check if we should pre-select an offer based on filter from page_3
 if 'state_nav_offer_hrefs' in st.session_state:
@@ -71,14 +72,26 @@ if has_selected_offer and 'state_page2_multiple_offers' not in st.session_state:
     focus = ', '.join([f.capitalize() for f in selected.get('focus', [])]) if selected.get('focus') else ''
     setting = ', '.join([s.capitalize() for s in selected.get('setting', [])]) if selected.get('setting') else ''
     
+    # Get average rating
+    rating_info = get_average_rating_for_offer(selected['href'])
+    
     # Display info in responsive columns
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Intensity", intensity)
     with col2:
         st.metric("Focus", focus if focus else 'N/A')
     with col3:
         st.metric("Setting", setting if setting else 'N/A')
+    with col4:
+        if rating_info['count'] > 0:
+            st.metric("Rating", f"{rating_info['avg']}/5 ⭐ ({rating_info['count']} Bewertungen)")
+        else:
+            st.metric("Rating", "Noch keine Bewertungen")
+    
+    # Rating-Widget für das Sportangebot
+    if st.user.is_logged_in:
+        render_sportangebot_rating_widget(selected['href'])
 
 # Fetch events - handle multiple offers if we came from page_3
 with st.spinner('Loading course dates...'):
@@ -346,3 +359,26 @@ for event in filtered_events:
     display_data.append(row)
 
 st.dataframe(display_data, use_container_width=True, height=500)
+
+# Rating für Trainer (nur wenn eingeloggt und Trainer vorhanden)
+if st.user.is_logged_in and has_selected_offer:
+    # Sammle alle Trainer
+    all_trainers = set()
+    for event in filtered_events:
+        trainers = event.get('trainers', [])
+        for trainer_name in trainers:
+            if trainer_name:
+                all_trainers.add(trainer_name)
+    
+    if all_trainers:
+        st.divider()
+        st.subheader("⭐ Trainer bewerten")
+        st.caption("Bewerten Sie Trainer, die Sie kennen")
+        
+        for trainer_name in sorted(all_trainers):
+            # Get average rating for this trainer
+            rating_info = get_average_rating_for_trainer(trainer_name)
+            if rating_info['count'] > 0:
+                st.text(f"{trainer_name}: {'⭐' * int(rating_info['avg'])} {rating_info['avg']}/5 ({rating_info['count']} Bewertungen)")
+            
+            render_trainer_rating_widget(trainer_name)

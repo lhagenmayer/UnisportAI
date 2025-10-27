@@ -48,3 +48,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Google OAuth Credentials
+client_secret_*.json
+*.apps.googleusercontent.com.json

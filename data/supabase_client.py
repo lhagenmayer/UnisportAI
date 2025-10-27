@@ -116,7 +116,7 @@ def get_trainers_for_all_offers():
 def get_supabase_client():
     """Returns a direct Supabase client for advanced operations"""
     conn = supaconn()
-    return conn._client
+    return conn
 
 
 @st.cache_resource
@@ -130,7 +130,6 @@ def get_user_from_db(user_sub: str):
 def create_or_update_user(user_data: dict):
     """Creates or updates a user in the database"""
     conn = supaconn()
-    client = conn._client
     
     user_sub = user_data.get('sub')
     if not user_sub:

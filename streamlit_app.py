@@ -23,10 +23,17 @@ overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯
 details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
 calendar_page = st.Page("pages/calendar.py", title="Calendar", icon="📆")
 profile_page = st.Page("pages/profile.py", title="My Profile", icon="👤")
-admin_page = st.Page("pages/admin.py", title="Admin Panel", icon="🔧", hidden=True)
+
+# Add admin page only if user is admin
+from data.user_management import is_admin
+pages = [overview_page, details_page, calendar_page, profile_page]
+
+if is_admin():
+    admin_page = st.Page("pages/admin.py", title="Admin Panel", icon="🔧")
+    pages.append(admin_page)
 
 # Set up navigation
-pg = st.navigation([overview_page, details_page, calendar_page, profile_page, admin_page])
+pg = st.navigation(pages)
 
 # Run the selected page
 pg.run()

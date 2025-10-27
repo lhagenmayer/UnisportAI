@@ -42,18 +42,32 @@ http://localhost:*/oauth2callback
 
 ## Streamlit Secrets Konfiguration
 
-**Wichtig**: Keine `redirect_uri` in der `secrets.toml` angeben!
+### Dynamische Port-Lösung
+
+**Option 1: Fester Port (empfohlen für lokale Entwicklung)**
+
+Bearbeiten Sie `.streamlit/secrets.toml` und setzen Sie einen festen redirect_uri-Port:
 
 ```toml
 [auth]
-# redirect_uri ist NICHT hier - wird automatisch gesetzt!
 cookie_secret = "Ihr Cookie Secret"
+# Port entsprechend anpassen: 8501, 8502, 8503, etc.
+redirect_uri = "http://localhost:8501/oauth2callback"
 
 [auth.google]
 client_id = "Ihre Google Client ID"
 client_secret = "Ihr Google Client Secret"
 server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 ```
+
+Dann starten Sie die App immer auf diesem Port:
+```bash
+streamlit run streamlit_app.py --server.port 8501
+```
+
+**Option 2: redirect_uri im [auth] Abschnitt setzen**
+
+Die `redirect_uri` kann auch im `[auth]` Abschnitt gesetzt werden statt bei `[auth.google]`.
 
 ## Best Practices
 
