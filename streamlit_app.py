@@ -2,32 +2,8 @@ import streamlit as st
 from data.auth import check_auth, render_user_menu, sync_user_to_supabase, check_token_expiry
 from data.supabase_client import get_supabase_client
 
-# Validate required secrets
-REQUIRED_SECRETS = {
-    'connections.supabase': ['url', 'key'],
-    'auth': ['cookie_secret', 'redirect_uri'],
-    'auth.google': ['client_id', 'client_secret', 'server_metadata_url']
-}
-
-missing_secrets = []
-for section, keys in REQUIRED_SECRETS.items():
-    if section not in st.secrets:
-        missing_secrets.append(f"Section '{section}' is missing")
-    else:
-        for key in keys:
-            full_key = f"{section}.{key}"
-            try:
-                value = st.secrets[section][key]
-                if not value or value == "":
-                    missing_secrets.append(f"{full_key} is empty")
-            except KeyError:
-                missing_secrets.append(f"{full_key} is missing")
-
-if missing_secrets:
-    st.error("⚠️ Security Configuration Error")
-    for secret in missing_secrets:
-        st.error(f"  - {secret}")
-    st.stop()
+# Note: Secrets validation happens in auth modules when needed
+# This prevents errors on Streamlit Cloud during deployment
 
 # Prüfe Authentifizierung
 check_auth()
