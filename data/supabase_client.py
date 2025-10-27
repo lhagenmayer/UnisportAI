@@ -3,7 +3,15 @@ from st_supabase_connection import SupabaseConnection
 
 def supaconn():
     try:
-        conn = st.connection("supabase", type=SupabaseConnection)
+        # Versuche, die Parameter aus den Secrets zu lesen
+        if "connections" in st.secrets and "supabase" in st.secrets.connections:
+            # Lese URL und Key aus den Secrets
+            url = st.secrets.connections.supabase.url
+            key = st.secrets.connections.supabase.key
+            conn = st.connection("supabase", type=SupabaseConnection, url=url, key=key)
+        else:
+            # Fallback auf Standardverbindung
+            conn = st.connection("supabase", type=SupabaseConnection)
         return conn
     except Exception as e:
         st.error(f"Fehler bei der Supabase-Verbindung: {str(e)}")

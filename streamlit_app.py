@@ -7,23 +7,22 @@ st.markdown(
     /* Sidebar schmaler machen */
     [data-testid="stSidebar"] {
         min-width: 200px;
-        max-width: 200px;
+        max-width: 400px;
     }
     
     /* Hauptinhalt breiter machen */
     .block-container {
-        max-width: 95%;
+        max-width: 69%;
         padding-left: 1rem;
         padding-right: 1rem;
     }
     
     /* Breiteres Layout für den gesamten Content */
     .main .block-container {
-        max-width: 95%;
+        max-width: 69%;
     }
     </style>
     """,
-    unsafe_allow_html=True
 )
 
 # Define the pages
