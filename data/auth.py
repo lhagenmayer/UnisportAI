@@ -25,27 +25,97 @@ def check_auth():
 
 def show_login_page():
     """Zeigt die Login-Seite mit Google OAuth"""
-    st.title("🔐 Anmeldung")
-    st.markdown("### Bitte melden Sie sich an, um fortzufahren")
     
-    # Debug-Informationen anzeigen (nur wenn Client-ID nicht konfiguriert ist)
+    # Beautiful header with university images
+    st.markdown(
+        """
+        <div style="position: relative; height: 280px; border-radius: 10px; overflow: hidden; margin-bottom: 2rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 100%;">
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/5/c/csm_HSG_Bibliothek_1_182bdcd9cf.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/e/f/csm_HSG_Hauptgebaeude_2_e959f946be.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/d/2/csm_HSG_SQUARE_1_43e4002cea.jpg'); background-size:cover; background-position:center;"></div>
+            <div style="background-image:url('https://www.unisg.ch/fileadmin/_processed_/3/c/csm_HSG_SQUARE_2_2426171a5d.jpg'); background-size:cover; background-position:center;"></div>
+          </div>
+          <div style="position:absolute; bottom:12px; left:12px; 
+                      background: rgba(0,0,0,0.65); color:#fff; padding:12px 18px; border-radius: 8px; 
+                      font-weight: 700; font-size: 24px; backdrop-filter: blur(4px);">
+            🎯 UnisportAI
+          </div>
+          <div style="position:absolute; bottom:12px; right:12px; 
+                      background: rgba(0,0,0,0.55); color:#fff; padding:6px 12px; border-radius: 6px; 
+                      font-size: 12px; backdrop-filter: blur(4px);">
+            © Universität St.Gallen (HSG)
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    # Main title
+    st.title("Willkommen bei UnisportAI")
+    st.markdown("### Entdecken Sie die Sportangebote der Universität St.Gallen")
+    
+    st.markdown("---")
+    
+    # Info section
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        #### 🎯 Was ist UnisportAI?
+        Eine intelligente Plattform zur Entdeckung und Verwaltung von Sportangeboten an der HSG.
+        
+        **Features:**
+        - 📅 Übersicht aller Kurse und Termine
+        - ⭐ Bewertungssystem für Kurse und Trainer
+        - ❤️ Favoriten für Ihre Lieblingssportarten
+        - 📆 Kalender-Integration (iCal)
+        - 🔍 Erweiterte Such- und Filterfunktionen
+        """)
+    
+    with col2:
+        st.markdown("""
+        #### 🔐 Sicherheit & Datenschutz
+        Ihre Daten sind bei uns sicher:
+        - ✅ Google OAuth Authentifizierung
+        - ✅ GDPR-konforme Datenverarbeitung
+        - ✅ Verschlüsselte Datenübertragung
+        - ✅ Sichere Datenbank-Infrastruktur
+        
+        **Keine Passwörter nötig** - einfach mit Google anmelden!
+        """)
+    
+    st.markdown("---")
+    
+    # Login button (centered and prominent)
+    st.markdown("#### Anmeldung mit Google")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        login_button = st.button(
+            "🔵 Mit Google anmelden",
+            on_click=st.login, 
+            args=["google"], 
+            use_container_width=True, 
+            type="primary",
+            key="google_login_button"
+        )
+    
+    st.markdown("---")
+    
+    # Additional info
+    st.info("💡 Nach der Anmeldung werden Sie zur Google-Anmeldeseite weitergeleitet. Ihre Daten werden sicher verarbeitet und nur für diese Anwendung verwendet.")
+    
+    # Debug information (only if needed)
     if st.secrets.get("auth", {}).get("google", {}).get("client_id") == "YOUR_GOOGLE_CLIENT_ID_HERE":
-        with st.expander("⚠️ Setup-Informationen", expanded=True):
+        with st.expander("⚠️ Setup-Informationen für Entwickler", expanded=False):
             st.markdown("### Google OAuth Setup erforderlich")
             st.markdown("""
             1. Erstellen Sie OAuth-Anmeldedaten in der [Google Cloud Console](https://console.cloud.google.com/)
             2. Fügen Sie folgende Redirect URIs hinzu:
-               - Für lokale Entwicklung: `http://localhost:8501/oauth2callback` bis Port 8510
-               - Für Production: `https://unisportai.streamlit.app/oauth2callback`
-            3. `redirect_uri` wird automatisch von Streamlit erkannt - NICHT in secrets.toml eintragen!
+               - Lokal: `http://localhost:8501/oauth2callback`
+               - Production: `https://unisportai.streamlit.app/oauth2callback`
             """)
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        st.button("🔵 Mit Google anmelden", on_click=st.login, args=["google"], use_container_width=True, type="primary")
-    
-    st.markdown("---")
-    st.info("💡 Sie werden zur Google-Anmeldeseite weitergeleitet.")
 
 
 def get_user_sub():
