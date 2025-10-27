@@ -3,9 +3,18 @@ from st_supabase_connection import SupabaseConnection
 
 def supaconn():
     try:
-        # Versuche die Verbindung - Methode 1: Direkt über st.connection (funktioniert lokal und Cloud)
-        conn = st.connection("supabase", type=SupabaseConnection)
-        return conn
+        # Versuche die Verbindung - zuerst über st.connection mit expliziten Parametern
+        # Falls Secrets vorhanden sind, lese sie und übergebe direkt
+        try:
+            # Versuche Secrets zu lesen
+            url = st.secrets["connections"]["supabase"]["url"]
+            key = st.secrets["connections"]["supabase"]["key"]
+            conn = st.connection("supabase", type=SupabaseConnection, url=url, key=key)
+            return conn
+        except:
+            # Falls das nicht funktioniert, versuche die Standard-Verbindung
+            conn = st.connection("supabase", type=SupabaseConnection)
+            return conn
     except Exception as e1:
         # Fallback: Environment-Variablen als Alternative
         import os
