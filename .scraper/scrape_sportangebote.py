@@ -98,7 +98,13 @@ def extract_offers(source: str) -> List[Dict[str, str]]:
     - Wir bauen aus Name und Link ein Dictionary: {"name": ..., "href": ...}.
     - Wir wandeln relative Links in absolute um (urljoin). So funktionieren sie auch außerhalb der Seite.
     - Wir entfernen Duplikate, falls ein Link mehrfach auftaucht.
+    - Wir filtern bestimmte Nicht-Sportangebote aus (z. B. Kurssuche, Filter-Seiten).
     """
+    # Liste von Angeboten, die ausgeschlossen werden sollen
+    excluded_offers = {
+        "alle freien Kursplätze dieses Zeitraums",
+    }
+    
     if source.startswith("http://") or source.startswith("https://"):
         base_url = source
         html = fetch_html(source)
@@ -115,6 +121,11 @@ def extract_offers(source: str) -> List[Dict[str, str]]:
         href = a.get("href")
         if not name or not href:
             continue
+        
+        # Überspringe ausgeschlossene Angebote
+        if name in excluded_offers:
+            continue
+            
         full_href = urljoin(base_url or "", href)
         if full_href in seen_hrefs:
             continue
@@ -183,6 +194,93 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
         }
         rows.append(course_data)
     return rows
+
+
+def extract_offer_metadata(offer: Dict[str, str]) -> Dict[str, str]:
+    """
+    Extrahiert Bild-URL und Beschreibungstext von einer Angebotsseite.
+    
+    Sucht nach:
+    - Dem ersten <img> Tag nach dem h1-Titel (nicht das Logo)
+    - Allen <p> Tags vor der Kurs-Tabelle, die die Beschreibung enthalten
+    """
+    href = offer["href"]
+    if not (href.startswith("http://") or href.startswith("https://")):
+        return {}
+    
+    html = fetch_html(href)
+    soup = BeautifulSoup(html, "lxml")
+    
+    result = {}
+    
+    # Finde das Element mit dem Titel (kann h1 oder div.bs_head sein)
+    title_element = soup.find("h1") or soup.find("div", class_="bs_head")
+    if title_element:
+        # Nach dem Titel suchen wir nach dem ersten <img> Tag
+        # Starte vom Titel und gehe durch alle Geschwister und deren Kinder
+        img_tag = None
+        current = title_element.find_next_sibling()
+        
+        while current and current.name != "table":
+            # Prüfe ob current selbst ein img ist
+            if current.name == "img":
+                img_tag = current
+                break
+            # Prüfe in allen Kindern dieses Elements
+            if hasattr(current, 'find_all'):
+                img = current.find("img")
+                if img and img.get("src"):
+                    img_src = img.get("src")
+                    if "logo" not in img_src.lower() and "icon" not in img_src.lower():
+                        img_tag = img
+                        break
+            current = current.find_next_sibling()
+        
+        if img_tag and img_tag.get("src"):
+            img_src = img_tag.get("src")
+            # Ignoriere Logos und Icons (oft mit "logo" oder "icon" im src)
+            if "logo" not in img_src.lower() and "icon" not in img_src.lower():
+                # Konvertiere relative URLs zu absoluten URLs
+                result["image_url"] = urljoin(href, img_src)
+    
+    # Finde die Tabelle
+    table = soup.select_one("table.bs_kurse")
+    
+    # Sammle alle <p> Tags nach dem Titel
+    paragraphs = []
+    
+    if title_element:
+        # Finde alle p-Tags nach dem Titel-Element
+        # Suche in allen nachfolgenden Geschwister-Elementen
+        current = title_element
+        while current:
+            current = current.next_sibling
+            
+            # Wenn wir eine Tabelle erreichen, stoppe
+            if current and hasattr(current, 'name') and current.name == "table":
+                break
+                
+            # Wenn current ein p-Tag ist, nimm es
+            if current and hasattr(current, 'name') and current.name == "p":
+                paragraphs.append(str(current))
+            
+            # Wenn current Kinder hat, suche nach p-Tags in den Kindern
+            if current and hasattr(current, 'find_all'):
+                for p in current.find_all("p"):
+                    paragraphs.append(str(p))
+    
+    # Entferne Duplikate - behalte die Reihenfolge bei
+    unique_paragraphs = []
+    seen = set()
+    for p in paragraphs:
+        if p not in seen:
+            unique_paragraphs.append(p)
+            seen.add(p)
+    
+    if unique_paragraphs:
+        result["description"] = "\n".join(unique_paragraphs)
+    
+    return result
 
 
 def extract_trainer_names(leitung: str) -> List[str]:
@@ -284,7 +382,6 @@ def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]
         
         out.append({
             "kursnr": kursnr,
-            "wochentag": wochentag,
             "start_time": start_timestamp,
             "end_time": end_timestamp,
             "ort_href": ort_href,
@@ -319,6 +416,26 @@ def main() -> None:
     # Idempotent: gleiche href → wird aktualisiert statt dupliziert
     supabase.table("sportangebote").upsert(offers, on_conflict="href").execute()
     print(f"Supabase: {len(offers)} Angebote upserted (idempotent).")
+
+    # 4b) Extrahiere Bild-URL und Beschreibungstext von jeder Angebotsseite
+    #     und aktualisiere die Einträge in der Datenbank
+    updated_count = 0
+    for offer in offers:
+        metadata = extract_offer_metadata(offer)
+        if metadata:
+            # Bereite Update vor: href + name + neue Felder
+            update_data = {
+                "href": offer["href"],
+                "name": offer["name"]
+            }
+            if "image_url" in metadata:
+                update_data["image_url"] = metadata["image_url"]
+            if "description" in metadata:
+                update_data["description"] = metadata["description"]
+            # Upsert mit den neuen Feldern
+            supabase.table("sportangebote").upsert(update_data, on_conflict="href").execute()
+            updated_count += 1
+    print(f"Supabase: Bild-URL und Beschreibungen aktualisiert für {updated_count} Angebote.")
 
     # 5) Als nächstes sammeln wir alle Kurse aller Angebote.
     #    Dafür besuchen wir für jedes Angebot die Detailseite und lesen die Kurstabelle.

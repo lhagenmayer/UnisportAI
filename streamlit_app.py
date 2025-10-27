@@ -1,38 +1,32 @@
 import streamlit as st
+from data.auth import check_auth, render_user_menu, sync_user_to_supabase, check_token_expiry
+from data.supabase_client import get_supabase_client
 
-# Custom CSS für schmalere Sidebar und breiteren Hauptinhalt
-st.markdown(
-    """
-    <style>
-    /* Sidebar schmaler machen */
-    [data-testid="stSidebar"] {
-        min-width: 200px;
-        max-width: 400px;
-    }
-    
-    /* Hauptinhalt breiter machen */
-    .block-container {
-        max-width: 95%;
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-    
-    /* Breiteres Layout für den gesamten Content */
-    .main .block-container {
-        max-width: 95%;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Prüfe Authentifizierung
+check_auth()
+
+# Prüfe Token-Ablauf
+check_token_expiry()
+
+# Synchronisiere Benutzer mit Supabase
+try:
+    client = get_supabase_client()
+    sync_user_to_supabase(client)
+except Exception as e:
+    st.warning(f"Fehler bei der Benutzersynchronisation: {e}")
+
+# Zeige Benutzermenü in der Sidebar
+render_user_menu()
 
 # Define the pages
-main_page = st.Page("pages/main_page.py", title="Main Page", icon="🎈")
-page_2 = st.Page("pages/page_2.py", title="Page 2", icon="❄️")
-page_3 = st.Page("pages/page_3.py", title="Page 3", icon="🎉")
+overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯")
+details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
+calendar_page = st.Page("pages/calendar.py", title="Calendar", icon="📆")
+profile_page = st.Page("pages/profile.py", title="My Profile", icon="👤")
+admin_page = st.Page("pages/admin.py", title="Admin Panel", icon="🔧", hidden=True)
 
 # Set up navigation
-pg = st.navigation([main_page, page_2, page_3])
+pg = st.navigation([overview_page, details_page, calendar_page, profile_page, admin_page])
 
 # Run the selected page
 pg.run()
