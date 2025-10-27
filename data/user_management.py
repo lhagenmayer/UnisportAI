@@ -153,7 +153,8 @@ def log_user_activity(activity_type: str, details: Optional[Dict] = None):
 
 def render_user_profile_page():
     """Render eine User-Profile Seite"""
-    if not st.user.is_logged_in:
+    from data.auth import is_logged_in
+    if not is_logged_in():
         st.error("❌ Bitte melden Sie sich an, um Ihr Profil zu sehen.")
         return
     

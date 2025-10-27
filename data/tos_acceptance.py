@@ -13,7 +13,10 @@ def check_tos_acceptance():
     Check if the current user has accepted TOS and Privacy Policy
     Returns: (tos_accepted, privacy_accepted)
     """
-    if not st.user.is_logged_in:
+    try:
+        if not hasattr(st.user, 'is_logged_in') or not st.user.is_logged_in:
+            return False, False
+    except AttributeError:
         return False, False
     
     try:
@@ -109,7 +112,8 @@ def save_tos_acceptance():
     Save TOS and Privacy Policy acceptance to database
     Returns: True if successful, False otherwise
     """
-    if not st.user.is_logged_in:
+    from data.auth import is_logged_in
+    if not is_logged_in():
         return False
     
     try:
@@ -147,7 +151,8 @@ def revoke_tos_acceptance():
     Allow users to revoke TOS/Privacy acceptance (deletes account)
     This is a nuclear option - the user will be logged out
     """
-    if not st.user.is_logged_in:
+    from data.auth import is_logged_in
+    if not is_logged_in():
         return False
     
     try:

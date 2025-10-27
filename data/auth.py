@@ -7,9 +7,17 @@ from datetime import datetime, timezone
 import json
 
 
+def is_logged_in():
+    """Safely check if user is logged in"""
+    try:
+        return hasattr(st.user, 'is_logged_in') and st.user.is_logged_in
+    except AttributeError:
+        return False
+
+
 def check_auth():
     """Prüft die Authentifizierung und leitet zur Login-Seite um wenn nicht eingeloggt"""
-    if not st.user.is_logged_in:
+    if not is_logged_in():
         show_login_page()
         st.stop()
     return True
@@ -42,21 +50,21 @@ def show_login_page():
 
 def get_user_sub():
     """Gibt die eindeutige Benutzer-ID zurück (sub-Claim aus OIDC Token)"""
-    if st.user.is_logged_in:
+    if is_logged_in():
         return st.user.sub
     return None
 
 
 def get_user_email():
     """Gibt die E-Mail-Adresse des eingeloggten Benutzers zurück"""
-    if st.user.is_logged_in:
+    if is_logged_in():
         return st.user.email
     return None
 
 
 def check_token_expiry():
     """Prüft ob der Token abgelaufen ist und leitet zum Logout um"""
-    if not st.user.is_logged_in:
+    if not is_logged_in():
         return
     
     # Prüfe ob exp-Claim vorhanden und abgelaufen
@@ -73,7 +81,7 @@ def check_token_expiry():
 
 def render_user_menu():
     """Rendert das Benutzermenü in der Sidebar"""
-    if st.user.is_logged_in:
+    if is_logged_in():
         st.sidebar.divider()
         
         with st.sidebar:
@@ -102,7 +110,7 @@ def render_user_menu():
 
 def get_user_info_dict():
     """Gibt die vollständigen Benutzerinformationen als Dictionary zurück"""
-    if not st.user.is_logged_in:
+    if not is_logged_in():
         return None
     
     return {
@@ -126,7 +134,7 @@ def sync_user_to_supabase(supabase_client):
     Returns:
         dict: Benutzerdaten aus Supabase
     """
-    if not st.user.is_logged_in:
+    if not is_logged_in():
         return None
     
     user_sub = st.user.sub

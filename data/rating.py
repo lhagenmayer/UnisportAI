@@ -13,7 +13,8 @@ from data.supabase_client import get_supabase_client
 
 def render_sportangebot_rating_widget(offer_href: str):
     """Rendert ein Rating-Widget für ein Sportangebot"""
-    if not st.user.is_logged_in:
+    from data.auth import is_logged_in
+    if not is_logged_in():
         return None
     
     user_sub = get_user_sub()
@@ -59,7 +60,8 @@ def render_sportangebot_rating_widget(offer_href: str):
 
 def render_trainer_rating_widget(trainer_name: str):
     """Rendert ein Rating-Widget für einen Trainer"""
-    if not st.user.is_logged_in:
+    from data.auth import is_logged_in
+    if not is_logged_in():
         return None
     
     user_sub = get_user_sub()
