@@ -18,11 +18,9 @@ Wie ist der Ablauf?
 
 Wichtige Tabellen/Felder in Supabase:
 - sportangebote: { name, href }
-- sportkurse:    { kursnr, offer_href, details, zeitraum_href, preis, bs_code, bs_kursid, … }
+- sportkurse:    { kursnr, offer_href, details, zeitraum_href, preis, … }
   • offer_name wird temporär als _offer_name gespeichert (für update_cancellations.py)
   • tag, zeit und leitung wurden entfernt (redundant mit kurs_termine/trainer)
-  • bs_code: Hidden Input im Formular, pro Angebots-Seite fest (nicht individuell pro Nutzer)
-  • bs_kursid: Submit Button Name (z.B. "BS_Kursid_23421") für Buchung
 - kurs_termine:  { kursnr, start_time, end_time, ort_href, location_name }
   • Primary Key: (kursnr, start_time) - ein Kurs kann zu verschiedenen Zeiten stattfinden
   • location_name verbindet die Termine mit der Standort-Tabelle `unisport_locations.name`
@@ -88,26 +86,6 @@ def fetch_html(url: str) -> str:
     return r.text
 
 
-def extract_bs_code_from_form(soup: BeautifulSoup) -> Optional[str]:
-    """
-    Extrahiert den BS_Code aus einem Formular auf der Angebots-Seite.
-    
-    Das Formular enthält ein hidden input field mit name="BS_Code", das als
-    Session-Identifier für die Kurs-Buchung dient.
-    
-    Returns None, falls kein BS_Code gefunden werden kann.
-    """
-    try:
-        # Suche nach dem hidden input field mit name="BS_Code"
-        bs_code_input = soup.find("input", {"name": "BS_Code", "type": "hidden"})
-        if bs_code_input and bs_code_input.get("value"):
-            return bs_code_input.get("value")
-    except Exception:
-        pass
-    
-    return None
-
-
 def extract_offers(source: str) -> List[Dict[str, str]]:
     """
     Liest die Hauptseite des Sportprogramms und findet die Liste aller Angebote.
@@ -155,10 +133,6 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
     - In manchen Zellen gibt es Links, die wir zusätzlich als href speichern (z. B. Ort-Link).
     - Besonders wichtig: In der Spalte "Zeitraum" gibt es einen Link zu einer Unterseite mit allen Terminen.
       Diesen Link speichern wir als "zeitraum_href", um später die exakten Termine zu laden.
-    - Das Formular enthält:
-      • "BS_Code" (hidden input): Pro Angebots-Seite fest, nicht pro Nutzer individuell
-      • Submit-Button mit name="BS_Kursid_XXX": Pro Kurs individuell
-      Diese Werte werden für den Buchungsprozess benötigt.
     """
     href = offer["href"]
     name = offer["name"]
@@ -170,9 +144,6 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
     if not table:
         return []
     tbody = table.find("tbody") or table
-    # Extrahiere BS_Code einmal aus dem Formular (gilt für alle Kurse auf der Seite)
-    bs_code = extract_bs_code_from_form(soup)
-    
     rows: List[Dict[str, str]] = []
     for tr in tbody.select("tr"):
         def text(sel: str) -> str:
@@ -197,9 +168,6 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
         preis = text("td.bs_spreis")
         buch_cell = tr.select_one("td.bs_sbuch")
         buchung = buch_cell.get_text(" ", strip=True) if buch_cell else ""
-        # Extrahiere Button-Name für Buchung (z.B. "BS_Kursid_23421")
-        submit_button = buch_cell.select_one("input[type='submit']") if buch_cell else None
-        bs_kursid = submit_button.get("name") if (submit_button and submit_button.get("name")) else None
         
         # Speichere temporäre Felder für Trainer-Extraktion (werden nicht in DB geschrieben)
         course_data = {
@@ -209,8 +177,6 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
             "zeitraum_href": zeitraum_href,
             "preis": preis,
             "buchung": buchung,
-            "bs_code": bs_code,  # BS_Code aus dem Formular (für alle Kurse gleich)
-            "bs_kursid": bs_kursid,  # Button-Name für Buchung (z.B. "BS_Kursid_23421")
             # Temporäre Felder mit _ markiert
             "_offer_name": name,  # Wird für update_cancellations.py benötigt
             "_leitung": leitung,  # Wird für Trainer-Extraktion benötigt
