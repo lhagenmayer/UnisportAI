@@ -5,7 +5,7 @@ from data.supabase_client import get_supabase_client
 # Note: Secrets validation happens in auth modules when needed
 # This prevents errors on Streamlit Cloud during deployment
 
-# Prüfe Authentifizierung
+# Check authentication FIRST - this will stop if not logged in
 check_auth()
 
 # Prüfe Token-Ablauf
@@ -31,7 +31,7 @@ if not (tos_accepted and privacy_accepted):
 # Zeige Benutzermenü in der Sidebar
 render_user_menu()
 
-# Define the pages
+# Define the pages (only AFTER authentication and TOS acceptance)
 overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯")
 details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
 calendar_page = st.Page("pages/calendar.py", title="Calendar", icon="📆")
