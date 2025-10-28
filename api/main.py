@@ -2,20 +2,16 @@
 FastAPI Endpoint für iCal Feed
 Hosted on Vercel
 """
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import Response
 from supabase import create_client
 import os
 from datetime import datetime, timedelta
 from typing import Optional
 from icalendar import Calendar, Event, Alarm, vCalAddress, vText
+import sys
 
 app = FastAPI(title="Unisport iCal Feed")
-
-# Handler für Vercel
-def handler(request):
-    # This will be called by Vercel
-    pass
 
 # Supabase Credentials from Environment Variables
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -27,16 +23,33 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 
 @app.get("/")
-async def root():
+def root():
     return {"message": "Unisport iCal Feed API", "version": "1.0.0"}
 
 
-@app.get("/ical-feed")
-async def get_ical_feed(token: str = Query(...)):
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def handler(request: Request, path: str):
+    """
+    Catch-all handler for all routes - needed for Vercel Python runtime
+    """
+    # Direct to specific endpoints
+    if path == "" or path == "ical-feed":
+        return await get_ical_feed(request.query_params.get("token"))
+    elif path == "api/health":
+        return {"status": "healthy"}
+    
+    # Default
+    return {"message": "Unisport iCal Feed API", "version": "1.0.0"}
+
+
+async def get_ical_feed(token: Optional[str] = None):
     """
     Generate personalized iCal feed for user
     Access via: https://your-app.vercel.app/ical-feed?token=YOUR_TOKEN
     """
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token parameter")
+    
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         
