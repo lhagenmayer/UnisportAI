@@ -3,78 +3,79 @@ iCal Feed Handler für Vercel
 Native Vercel Python Function
 """
 
-from supabase import create_client
+from urllib.parse import urlparse, parse_qs
+import json
 import os
+from supabase import create_client
 from datetime import datetime, timedelta
 from typing import Optional
 from icalendar import Calendar, Event, Alarm, vCalAddress, vText
-from http.server import BaseHTTPRequestHandler
-import json
 
 
-def handler(request):
+def handler(req):
     """
-    Vercel Python Handler
-    https://vercel.com/docs/functions/runtimes/python
+    Vercel Python Function Handler
+    Args:
+        req: Vercel request object with .path and .query
     """
-    
-    # Get query parameters
-    query_params = request.args
+    # Parse URL
+    path = req.path
+    query_params = parse_qs(req.query)
     
     # Route handling
-    if request.path == '/' or request.path == '':
-        return Response(
-            json.dumps({"message": "Unisport iCal Feed API", "version": "1.0.0"}),
-            status_code=200,
-            headers={'Content-Type': 'application/json'}
-        )
+    if path == '/' or path == '':
+        return {
+            "statusCode": 200,
+            "headers": {'Content-Type': 'application/json'},
+            "body": json.dumps({"message": "Unisport iCal Feed API", "version": "1.0.0"})
+        }
     
-    if request.path == '/ical-feed':
-        token = query_params.get('token')
+    if path == '/ical-feed':
+        token = query_params.get('token', [None])[0]
         
         if not token:
-            return Response(
-                json.dumps({"error": "Missing token parameter"}),
-                status_code=401,
-                headers={'Content-Type': 'application/json'}
-            )
+            return {
+                "statusCode": 401,
+                "headers": {'Content-Type': 'application/json'},
+                "body": json.dumps({"error": "Missing token parameter"})
+            }
         
         # Get Supabase credentials
         supabase_url = os.environ.get("SUPABASE_URL", "")
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
         
         if not supabase_url or not supabase_key:
-            return Response(
-                json.dumps({"error": "Missing Supabase credentials"}),
-                status_code=500,
-                headers={'Content-Type': 'application/json'}
-            )
+            return {
+                "statusCode": 500,
+                "headers": {'Content-Type': 'application/json'},
+                "body": json.dumps({"error": "Missing Supabase credentials"})
+            }
         
         try:
             # Generate iCal feed
             ical_content = generate_ical_feed(supabase_url, supabase_key, token)
             
-            return Response(
-                ical_content,
-                status_code=200,
-                headers={
+            return {
+                "statusCode": 200,
+                "headers": {
                     'Content-Type': 'text/calendar; charset=utf-8',
                     'Content-Disposition': 'inline; filename=unisport_meine_kurse.ics'
-                }
-            )
+                },
+                "body": ical_content
+            }
         except Exception as e:
-            return Response(
-                json.dumps({"error": str(e)}),
-                status_code=500,
-                headers={'Content-Type': 'application/json'}
-            )
+            return {
+                "statusCode": 500,
+                "headers": {'Content-Type': 'application/json'},
+                "body": json.dumps({"error": str(e)})
+            }
     
     # 404
-    return Response(
-        json.dumps({"error": "Not found"}),
-        status_code=404,
-        headers={'Content-Type': 'application/json'}
-    )
+    return {
+        "statusCode": 404,
+        "headers": {'Content-Type': 'application/json'},
+        "body": json.dumps({"error": "Not found"})
+    }
 
 
 def generate_ical_feed(supabase_url: str, supabase_key: str, token: str) -> str:
