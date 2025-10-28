@@ -1,12 +1,14 @@
 """
 iCal Generator für dynamische Kalender-Feeds
 Generiert iCal-Feeds mit Friend ATTENDEE Support
+Verwendet die professionelle icalendar Library
 """
 import streamlit as st
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from data.supabase_client import supaconn
 from data.auth import get_user_sub
+from icalendar import Calendar, Event, Alarm, vCalAddress, vText
 
 
 def format_ical_date(date: datetime) -> str:
@@ -106,15 +108,15 @@ def generate_dynamic_ical_with_attendees(user_id: Optional[str] = None) -> str:
         
         if not notifications.data:
             # Leere Kalender wenn keine Events
-            return """BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Unisport AI//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-X-WR-CALNAME:Unisport Meine Kurse
-X-WR-TIMEZONE:Europe/Zurich
-X-WR-CALDESC:Meine angemeldeten Sportkurse
-END:VCALENDAR"""
+            cal = Calendar()
+            cal.add('version', '2.0')
+            cal.add('prodid', '-//Unisport AI//EN')
+            cal.add('calscale', 'GREGORIAN')
+            cal.add('method', 'PUBLISH')
+            cal.add('X-WR-CALNAME', 'Unisport Meine Kurse')
+            cal.add('X-WR-TIMEZONE', 'Europe/Zurich')
+            cal.add('X-WR-CALDESC', 'Meine angemeldeten Sportkurse')
+            return cal.to_ical().decode('utf-8')
         
         # Hole die aktuellen Termine
         event_ids = [n['event_id'] for n in notifications.data]
@@ -163,21 +165,25 @@ END:VCALENDAR"""
         # Verwende all_events direkt
         events_list = all_events
         
+        # Erstelle iCalendar Calendar-Objekt
+        cal = Calendar()
+        cal.add('version', '2.0')
+        cal.add('prodid', '-//Unisport AI//EN')
+        cal.add('calscale', 'GREGORIAN')
+        cal.add('method', 'PUBLISH')
+        cal.add('X-WR-CALNAME', 'Unisport Meine Kurse')
+        cal.add('X-WR-TIMEZONE', 'Europe/Zurich')
+        cal.add('X-WR-CALDESC', 'Meine angemeldeten Sportkurse')
+        
         if not events_list:
-            return "BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR"
+            return cal.to_ical().decode('utf-8')
         
-        # Generiere iCal
-        ical_lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Unisport AI//EN",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "X-WR-CALNAME:Unisport Meine Kurse",
-            "X-WR-TIMEZONE:Europe/Zurich",
-            "X-WR-CALDESC:Meine angemeldeten Sportkurse",
-        ]
+        # Hole User-E-Mail
+        user_email_result = conn.table("users").select("email, name").eq("id", user_id).execute()
+        user_email = user_email_result.data[0].get('email', '') if user_email_result.data else ''
+        user_name = user_email_result.data[0].get('name', '') if user_email_result.data else ''
         
+        # Füge Events hinzu
         for event in events_list:
             if not event.get('start_time'):
                 continue
@@ -189,11 +195,11 @@ END:VCALENDAR"""
             else:
                 end_time = start_time + timedelta(hours=1)
             
-            # Event ID (gleiche Logik wie in Edge Function)
+            # Event ID
             event_id = f"{event.get('kursnr', '')}_{event.get('start_time', '')}_{event.get('location_name', '')}"
             
             # UID
-            uid = f"{event.get('kursnr', '')}_{event.get('start_time', '')}_{user_id}"
+            uid = f"{event.get('kursnr', '')}_{event.get('start_time', '')}_{user_email}"
             
             # Trainer info
             trainers = event.get('trainers', [])
@@ -211,42 +217,42 @@ END:VCALENDAR"""
             except:
                 pass
             
-            # Erstelle Event
-            event_lines = [
-                "BEGIN:VEVENT",
-                f"UID:{uid}",
-                f"DTSTAMP:{format_ical_date(datetime.utcnow())}",
-                f"DTSTART:{format_ical_date(start_time)}",
-                f"DTEND:{format_ical_date(end_time)}",
-                f"SUMMARY:{sport_name}",
-                f"LOCATION:{event.get('location_name', 'Unisport')}",
-                f"DESCRIPTION:Trainer: {trainers_str}",
-            ]
+            # Erstelle Event mit icalendar
+            ical_event = Event()
+            ical_event.add('uid', uid)
+            ical_event.add('dtstamp', datetime.utcnow())
+            ical_event.add('dtstart', start_time)
+            ical_event.add('dtend', end_time)
+            ical_event.add('summary', sport_name)
+            ical_event.add('location', event.get('location_name', 'Unisport'))
+            ical_event.add('description', f"Trainer: {trainers_str}")
             
-            # Add GEO coordinates if available (format: lat;long)
+            # GEO coordinates
             if event.get('lat') and event.get('lng'):
-                event_lines.append(f"GEO:{event['lat']};{event['lng']}")
+                ical_event.add('geo', (float(event['lat']), float(event['lng'])))
             
-            # Füge Freunde als ATTENDEE hinzu
-            for email in friend_emails:
-                event_lines.append(f"ATTENDEE;RSVP=TRUE;CN=Freund:mailto:{email}")
+            # Status
+            ical_event.add('status', 'CONFIRMED')
+            ical_event.add('sequence', 0)
             
-            event_lines.extend([
-                "STATUS:CONFIRMED",
-                "SEQUENCE:0",
-                "BEGIN:VALARM",
-                "TRIGGER:-PT15M",
-                "ACTION:DISPLAY",
-                "DESCRIPTION:Erinnerung",
-                "END:VALARM",
-                "END:VEVENT"
-            ])
+            # ATTENDEE für Freunde
+            if friend_emails:
+                for email in friend_emails:
+                    attendee = vCalAddress(f'mailto:{email}')
+                    attendee.params['CN'] = vText(f"Freund: {email}")
+                    attendee.params['RSVP'] = vText('TRUE')
+                    ical_event.add('attendee', attendee)
             
-            ical_lines.extend(event_lines)
+            # Alarm
+            alarm = Alarm()
+            alarm.add('action', 'DISPLAY')
+            alarm.add('trigger', timedelta(minutes=-15))
+            alarm.add('description', 'Erinnerung')
+            ical_event.add_component(alarm)
+            
+            cal.add_component(ical_event)
         
-        ical_lines.append("END:VCALENDAR")
-        
-        return "\r\n".join(ical_lines)
+        return cal.to_ical().decode('utf-8')
         
     except Exception as e:
         st.error(f"Fehler beim Generieren des iCal Feeds: {e}")

@@ -364,7 +364,8 @@ def render_user_profile_page():
                 
                 if project_ref:
                     # Generate personalized Feed URL with token
-                    ical_feed_url = f"https://{project_ref}.supabase.co/functions/v1/ical-feed?token={ical_token}"
+                    # Vercel deployment URL - replace with your actual Vercel URL
+                    ical_feed_url = f"https://unisport-ical-feed.vercel.app/ical-feed?token={ical_token}"
                     
                     st.text_input("🔗 Deine persönliche iCal Feed URL", ical_feed_url, disabled=True, label_visibility="visible")
                     st.caption("💡 Kopiere diese URL und füge sie zu deinem Kalender hinzu")

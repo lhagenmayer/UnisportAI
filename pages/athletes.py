@@ -39,35 +39,30 @@ def get_friend_status(user_id: int, other_user_id: int) -> str:
         client = get_supabase_client()
         
         # Prüfe ob bereits befreundet
-        friendship = client.table("user_friends").select("*").or_(
-            f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
-        ).or_(
-            f"requester_id.eq.{other_user_id},addressee_id.eq.{other_user_id}"
-        ).execute()
+        # Two separate queries to check both directions
+        friendship1 = client.table("user_friends").select("*").eq("requester_id", user_id).eq("addressee_id", other_user_id).execute()
+        friendship2 = client.table("user_friends").select("*").eq("requester_id", other_user_id).eq("addressee_id", user_id).execute()
         
-        if friendship.data:
+        if friendship1.data or friendship2.data:
             return "friends"
         
-        # Prüfe auf ausstehende Anfrage
-        request = client.table("friend_requests").select("*").or_(
-            f"and(requester_id.eq.{user_id},addressee_id.eq.{other_user_id})"
-        ).or_(
-            f"and(requester_id.eq.{other_user_id},addressee_id.eq.{user_id})"
-        ).execute()
+        # Prüfe auf ausstehende Anfrage - der User hat Anfrage gesendet
+        request_sent = client.table("friend_requests").select("*").eq("requester_id", user_id).eq("addressee_id", other_user_id).eq("status", "pending").execute()
         
-        if request.data:
-            req = request.data[0]
-            if req['status'] == 'pending':
-                if req['requester_id'] == user_id:
-                    return "request_sent"
-                else:
-                    return "request_received"
-            elif req['status'] == 'rejected':
-                return "rejected"
+        if request_sent.data:
+            return "request_sent"
+        
+        # Prüfe auf Anfrage erhalten
+        request_received = client.table("friend_requests").select("*").eq("requester_id", other_user_id).eq("addressee_id", user_id).eq("status", "pending").execute()
+        
+        if request_received.data:
+            return "request_received"
         
         return "none"
     except Exception as e:
         st.error(f"Fehler beim Prüfen des Freundschaftsstatus: {e}")
+        import traceback
+        st.code(traceback.format_exc())
         return "none"
 
 
@@ -141,15 +136,15 @@ def unfollow_user(user_id: int, friend_id: int) -> bool:
         client = get_supabase_client()
         
         # Lösche Freundschaft in beide Richtungen
-        client.table("user_friends").delete().or_(
-            f"and(requester_id.eq.{user_id},addressee_id.eq.{friend_id})"
-        ).or_(
-            f"and(requester_id.eq.{friend_id},addressee_id.eq.{user_id})"
-        ).execute()
+        # Use .or() to handle both directions
+        result1 = client.table("user_friends").delete().eq("requester_id", user_id).eq("addressee_id", friend_id).execute()
+        result2 = client.table("user_friends").delete().eq("requester_id", friend_id).eq("addressee_id", user_id).execute()
         
         return True
     except Exception as e:
         st.error(f"Fehler beim Entfernen der Freundschaft: {e}")
+        import traceback
+        st.code(traceback.format_exc())
         return False
 
 
