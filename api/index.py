@@ -1,81 +1,46 @@
 """
-iCal Feed Handler für Vercel
-Native Vercel Python Function
+FastAPI iCal Feed für Vercel
 """
 
-from urllib.parse import urlparse, parse_qs
-import json
+from fastapi import FastAPI, Query
+from fastapi.responses import Response
 import os
 from supabase import create_client
 from datetime import datetime, timedelta
 from typing import Optional
 from icalendar import Calendar, Event, Alarm, vCalAddress, vText
 
+app = FastAPI()
 
-def handler(req):
-    """
-    Vercel Python Function Handler
-    Args:
-        req: Vercel request object with .path and .query
-    """
-    # Parse URL
-    path = req.path
-    query_params = parse_qs(req.query)
+
+@app.get("/")
+async def read_root():
+    return {"message": "Unisport iCal Feed API", "version": "1.0.0"}
+
+
+@app.get("/ical-feed")
+async def get_ical_feed(token: Optional[str] = Query(None)):
+    if not token:
+        return {"error": "Missing token parameter"}
     
-    # Route handling
-    if path == '/' or path == '':
-        return {
-            "statusCode": 200,
-            "headers": {'Content-Type': 'application/json'},
-            "body": json.dumps({"message": "Unisport iCal Feed API", "version": "1.0.0"})
-        }
+    # Get Supabase credentials
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     
-    if path == '/ical-feed':
-        token = query_params.get('token', [None])[0]
-        
-        if not token:
-            return {
-                "statusCode": 401,
-                "headers": {'Content-Type': 'application/json'},
-                "body": json.dumps({"error": "Missing token parameter"})
-            }
-        
-        # Get Supabase credentials
-        supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        
-        if not supabase_url or not supabase_key:
-            return {
-                "statusCode": 500,
-                "headers": {'Content-Type': 'application/json'},
-                "body": json.dumps({"error": "Missing Supabase credentials"})
-            }
-        
-        try:
-            # Generate iCal feed
-            ical_content = generate_ical_feed(supabase_url, supabase_key, token)
-            
-            return {
-                "statusCode": 200,
-                "headers": {
-                    'Content-Type': 'text/calendar; charset=utf-8',
-                    'Content-Disposition': 'inline; filename=unisport_meine_kurse.ics'
-                },
-                "body": ical_content
-            }
-        except Exception as e:
-            return {
-                "statusCode": 500,
-                "headers": {'Content-Type': 'application/json'},
-                "body": json.dumps({"error": str(e)})
-            }
+    if not supabase_url or not supabase_key:
+        return {"error": "Missing Supabase credentials"}
     
-    # 404
-    return {
-        "statusCode": 404,
-        "headers": {'Content-Type': 'application/json'},
-        "body": json.dumps({"error": "Not found"})
-    }
+    try:
+        # Generate iCal feed
+        ical_content = generate_ical_feed(supabase_url, supabase_key, token)
+        
+        return Response(
+            content=ical_content,
+            media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": "inline; filename=unisport_meine_kurse.ics"}
+        )
+    except Exception as e:
+        return {"error": str(e)}
 
 
 def generate_ical_feed(supabase_url: str, supabase_key: str, token: str) -> str:
@@ -100,52 +65,13 @@ def generate_ical_feed(supabase_url: str, supabase_key: str, token: str) -> str:
         notifications = supabase.table('friend_course_notifications').select('event_id, created_at').eq('user_id', user_id).execute()
         
         if not notifications.data:
-            # Return empty calendar
             cal = Calendar()
             cal.add('version', '2.0')
             cal.add('prodid', '-//Unisport AI//EN')
-            cal.add('calscale', 'GREGORIAN')
-            cal.add('method', 'PUBLISH')
-            cal.add('X-WR-CALNAME', 'Unisport Meine Kurse')
-            cal.add('X-WR-TIMEZONE', 'Europe/Zurich')
-            cal.add('X-WR-CALDESC', 'Meine angemeldeten Sportkurse')
             return cal.to_ical().decode('utf-8')
         
-        # Parse events and get course dates
-        event_ids = [n['event_id'] for n in notifications.data]
-        all_events = []
-        
-        for event_id in event_ids:
-            parts = event_id.split('_')
-            if len(parts) >= 2:
-                kursnr = parts[0]
-                last_underscore_index = event_id.rfind('_')
-                if last_underscore_index > 0:
-                    start_time = event_id[len(kursnr) + 1:last_underscore_index]
-                else:
-                    start_time = parts[1] if len(parts) > 1 else ''
-                
-                # Get event from kurs_termine
-                result = supabase.table('kurs_termine').select('*').eq('kursnr', kursnr).eq('start_time', start_time).execute()
-                
-                if result.data:
-                    for event_data in result.data:
-                        # Add location data
-                        if event_data.get('ort_href') and event_data.get('location_name'):
-                            location_result = supabase.table('unisport_locations').select('lat, lng').eq('name', event_data['location_name']).execute()
-                            if location_result.data and len(location_result.data) > 0:
-                                event_data['lat'] = location_result.data[0].get('lat')
-                                event_data['lng'] = location_result.data[0].get('lng')
-                        
-                        # Add sport name
-                        try:
-                            sport_result = supabase.table('sportkurse').select('offer_href, sportangebote(name)').eq('kursnr', kursnr).limit(1).execute()
-                            if sport_result.data and sport_result.data[0].get('sportangebote'):
-                                event_data['sport_name'] = sport_result.data[0]['sportangebote']['name']
-                        except:
-                            event_data['sport_name'] = 'Sportkurs'
-                        
-                        all_events.append(event_data)
+        # Get all unique event_ids
+        event_ids = list(set([n['event_id'] for n in notifications.data]))
         
         # Create calendar
         cal = Calendar()
@@ -157,109 +83,84 @@ def generate_ical_feed(supabase_url: str, supabase_key: str, token: str) -> str:
         cal.add('X-WR-TIMEZONE', 'Europe/Zurich')
         cal.add('X-WR-CALDESC', 'Meine angemeldeten Sportkurse')
         
-        # Get user email
-        user_email = user_data.get('email', '')
-        user_name = user_data.get('name', '')
-        
-        # Add events
-        for event_data in all_events:
-            if not event_data.get('start_time'):
+        # Fetch event details for each event_id
+        for event_id_str in event_ids:
+            try:
+                # Parse event_id to extract kursnr and start_time
+                parts = event_id_str.split('_', 2)
+                if len(parts) < 3:
+                    continue
+                
+                kursnr = parts[0]
+                start_time_str = parts[1].replace('%20', ' ')
+                
+                # Fetch event details
+                result = supabase.table('kurs_termine').select('*, unisport_locations(*)').eq('kursnr', kursnr).eq('start_time', start_time_str).limit(1).execute()
+                
+                if not result.data:
+                    continue
+                
+                event = result.data[0]
+                
+                # Parse dates
+                start_time = datetime.fromisoformat(str(event['start_time']).replace('Z', '+00:00'))
+                end_time = event.get('end_time')
+                if end_time:
+                    end_time = datetime.fromisoformat(str(end_time).replace('Z', '+00:00'))
+                else:
+                    end_time = start_time + timedelta(hours=1)
+                
+                # Get location
+                location = event.get('unisport_locations')
+                location_name = location.get('name', 'Unisport') if location else event.get('location_name', 'Unisport')
+                lat = location.get('lat') if location else None
+                lng = location.get('lng') if location else None
+                
+                # Get sport name
+                sport_name = 'Sportkurs'
+                try:
+                    sport_result = supabase.table("sportkurse").select("sportangebote(name)").eq("kursnr", kursnr).limit(1).execute()
+                    if sport_result.data and sport_result.data[0].get('sportangebote'):
+                        sport_name = sport_result.data[0]['sportangebote']['name']
+                except:
+                    pass
+                
+                # Get trainers
+                trainers = event.get('trainers', [])
+                trainers_str = ', '.join(trainers) if isinstance(trainers, list) else (trainers or 'N/A')
+                
+                # Create iCal event
+                ical_event = Event()
+                ical_event.add('uid', f"{kursnr}_{start_time_str}_{user_data['email']}")
+                ical_event.add('dtstamp', datetime.utcnow())
+                ical_event.add('dtstart', start_time)
+                ical_event.add('dtend', end_time)
+                ical_event.add('summary', sport_name)
+                ical_event.add('location', location_name)
+                ical_event.add('description', f"Trainer: {trainers_str}")
+                
+                # GEO coordinates
+                if lat and lng:
+                    ical_event.add('geo', (float(lat), float(lng)))
+                
+                # Status
+                ical_event.add('status', 'CONFIRMED')
+                
+                # Alarm
+                alarm = Alarm()
+                alarm.add('action', 'DISPLAY')
+                alarm.add('trigger', timedelta(minutes=-15))
+                alarm.add('description', 'Erinnerung')
+                ical_event.add_component(alarm)
+                
+                cal.add_component(ical_event)
+            except Exception as e:
                 continue
-            
-            # Parse timestamps
-            start_time = datetime.fromisoformat(str(event_data['start_time']).replace('Z', '+00:00'))
-            end_time = event_data.get('end_time')
-            if end_time:
-                end_time = datetime.fromisoformat(str(end_time).replace('Z', '+00:00'))
-            else:
-                end_time = start_time + timedelta(hours=1)
-            
-            event_id = f"{event_data.get('kursnr', '')}_{event_data.get('start_time', '')}_{event_data.get('location_name', '')}"
-            
-            # Get friend emails
-            friend_emails = get_friends_emails_for_event(supabase, event_id, user_id)
-            
-            # Create event
-            ical_event = Event()
-            ical_event.add('uid', f"{event_data.get('kursnr', '')}_{start_time.strftime('%Y%m%dT%H%M%S')}-{user_email}")
-            ical_event.add('dtstamp', datetime.utcnow())
-            ical_event.add('dtstart', start_time)
-            ical_event.add('dtend', end_time)
-            ical_event.add('summary', event_data.get('sport_name', 'Sportkurs'))
-            ical_event.add('location', event_data.get('location_name', 'Unisport'))
-            
-            # Add trainers as description
-            trainers = event_data.get('trainers', [])
-            trainers_str = ', '.join(trainers) if isinstance(trainers, list) else (trainers or 'N/A')
-            ical_event.add('description', f"Trainer: {trainers_str}")
-            
-            # Add GEO coordinates
-            if event_data.get('lat') and event_data.get('lng'):
-                ical_event.add('geo', (float(event_data['lat']), float(event_data['lng'])))
-            
-            ical_event.add('status', 'CONFIRMED')
-            ical_event.add('sequence', 0)
-            
-            # Add friend attendees
-            if friend_emails:
-                for email in friend_emails:
-                    attendee = vCalAddress(f'mailto:{email}')
-                    attendee.params['CN'] = vText(f"Freund: {email}")
-                    attendee.params['RSVP'] = vText('TRUE')
-                    ical_event.add('attendee', attendee)
-            
-            # Add alarm
-            alarm = Alarm()
-            alarm.add('action', 'DISPLAY')
-            alarm.add('trigger', timedelta(minutes=-15))
-            alarm.add('description', 'Erinnerung')
-            ical_event.add_component(alarm)
-            
-            cal.add_component(ical_event)
         
         return cal.to_ical().decode('utf-8')
-        
     except Exception as e:
         # Return empty calendar on error
         cal = Calendar()
         cal.add('version', '2.0')
         cal.add('prodid', '-//Unisport AI//EN')
         return cal.to_ical().decode('utf-8')
-
-
-def get_friends_emails_for_event(supabase_client, event_id: str, user_id: str) -> list:
-    """Get friend emails who are also going to event"""
-    try:
-        # Get friendships
-        friendships = supabase_client.table("user_friends").select("*").execute()
-        
-        if not friendships.data:
-            return []
-        
-        # Get friend IDs
-        friend_ids = []
-        for friendship in friendships.data:
-            if friendship['requester_id'] == user_id:
-                friend_ids.append(friendship['addressee_id'])
-            elif friendship['addressee_id'] == user_id:
-                friend_ids.append(friendship['requester_id'])
-        
-        if not friend_ids:
-            return []
-        
-        # Get friends who are also going
-        notifications = supabase_client.table("friend_course_notifications").select(
-            "user_id, users!user_id(email)"
-        ).eq("event_id", event_id).in_("user_id", friend_ids).execute()
-        
-        # Extract emails
-        emails = []
-        for notif in notifications.data:
-            if isinstance(notif.get('users'), dict) and notif['users'].get('email'):
-                emails.append(notif['users']['email'])
-        
-        return emails
-        
-    except Exception:
-        return []
-
