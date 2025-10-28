@@ -8,10 +8,6 @@ on:
   # Allow manual triggering from GitHub UI
   workflow_dispatch:
 
-  # Also run on pushes to main
-  push:
-    branches: [ main ]
-
 jobs:
   scrape:
     runs-on: ubuntu-latest
