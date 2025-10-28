@@ -66,6 +66,9 @@ from bs4 import BeautifulSoup
 from supabase import create_client
 # - dotenv.load_dotenv: Liest die .env-Datei (damit Keys nicht im Code stehen)
 from dotenv import load_dotenv
+import csv
+import json
+import urllib3
 
 
 def fetch_html(url: str) -> str:
@@ -390,6 +393,291 @@ def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]
     return out
 
 
+def apply_overrides(supabase) -> None:
+    """
+    Liest harte Overrides aus .scraper/missing_overrides.json und schreibt sie nach Supabase.
+    Struktur der JSON-Datei:
+    {
+      "sportangebote": [ {"identifier": "<href>", "fields": {"image_url": "...", "description": "..."}} ],
+      "sportkurse": [ {"identifier": "<kursnr>", "fields": {"offer_href": "...", "zeitraum_href": "..."}} ],
+      "kurs_termine": [ {"identifier": "<kursnr>|<YYYY-MM-DDTHH:MM:SS>", "fields": {"ort_href": "...", "location_name": "...", "end_time": "<ISO>"}} ],
+      "unisport_locations": [ {"identifier": "<name>", "fields": {"lat": 47.0, "lng": 9.0, "ort_href": "...", "spid": "..."}} ]
+    }
+    """
+    overrides_path = os.path.join(os.path.dirname(__file__), "missing_overrides.json")
+    if not os.path.exists(overrides_path):
+        return
+    try:
+        with open(overrides_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh) or {}
+    except Exception as e:
+        print(f"Warnung: missing_overrides.json konnte nicht gelesen werden: {e}")
+        return
+
+    def _safe_fields(d: Dict[str, object]) -> Dict[str, object]:
+        return {k: v for k, v in (d or {}).items()}
+
+    # sportangebote by href
+    for item in (data.get("sportangebote") or []):
+        href = item.get("identifier")
+        fields = _safe_fields(item.get("fields") or {})
+        if not href or not fields:
+            continue
+        try:
+            fields["href"] = href
+            supabase.table("sportangebote").upsert(fields, on_conflict="href").execute()
+        except Exception as e:
+            print(f"Override sportangebote fehlgeschlagen ({href}): {e}")
+
+    # sportkurse by kursnr
+    for item in (data.get("sportkurse") or []):
+        kursnr = item.get("identifier")
+        fields = _safe_fields(item.get("fields") or {})
+        if not kursnr or not fields:
+            continue
+        try:
+            fields["kursnr"] = kursnr
+            supabase.table("sportkurse").upsert(fields, on_conflict="kursnr").execute()
+        except Exception as e:
+            print(f"Override sportkurse fehlgeschlagen ({kursnr}): {e}")
+
+    # kurs_termine by (kursnr, start_time)
+    for item in (data.get("kurs_termine") or []):
+        ident = item.get("identifier") or ""
+        fields = _safe_fields(item.get("fields") or {})
+        if not ident or "|" not in ident or not fields:
+            continue
+        kursnr, start_time = ident.split("|", 1)
+        kursnr = kursnr.strip()
+        start_time = start_time.strip()
+        if not kursnr or not start_time:
+            continue
+        try:
+            fields["kursnr"] = kursnr
+            fields["start_time"] = start_time
+            supabase.table("kurs_termine").upsert(fields, on_conflict="kursnr,start_time").execute()
+        except Exception as e:
+            print(f"Override kurs_termine fehlgeschlagen ({ident}): {e}")
+
+    # unisport_locations by name
+    for item in (data.get("unisport_locations") or []):
+        name = item.get("identifier")
+        fields = _safe_fields(item.get("fields") or {})
+        if not name or not fields:
+            continue
+        try:
+            fields["name"] = name
+            supabase.table("unisport_locations").upsert(fields, on_conflict="name").execute()
+        except Exception as e:
+            print(f"Override unisport_locations fehlgeschlagen ({name}): {e}")
+
+def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
+    """
+    Ermittelt fehlende Felder in sportangebote, sportkurse, kurs_termine und unisport_locations
+    und schreibt sie als CSV nach .scraper/missing_info.csv.
+    """
+    rows: List[Dict[str, str]] = []
+
+    # sportangebote: fehlende image_url, fehlende description
+    try:
+        sa1 = supabase.table("sportangebote").select("href,name").is_("image_url", "null").execute()
+        sa2 = supabase.table("sportangebote").select("href,name").eq("image_url", "").execute()
+        sa3 = supabase.table("sportangebote").select("href,name").is_("description", "null").execute()
+        sa4 = supabase.table("sportangebote").select("href,name").eq("description", "").execute()
+        def _append_sa(data, field):
+            for r in (data.data or []):
+                rows.append({
+                    "table_name": "sportangebote",
+                    "identifier": r.get("href") or "",
+                    "missing_field": field,
+                    "context1": r.get("name") or "",
+                    "context2": "",
+                })
+        _append_sa(sa1, "image_url")
+        _append_sa(sa2, "image_url")
+        _append_sa(sa3, "description")
+        _append_sa(sa4, "description")
+    except Exception:
+        pass
+
+    # sportkurse: fehlende offer_href, fehlende zeitraum_href
+    try:
+        sk1 = supabase.table("sportkurse").select("kursnr,details,preis").is_("offer_href", "null").execute()
+        sk2 = supabase.table("sportkurse").select("kursnr,details,preis").eq("offer_href", "").execute()
+        sk3 = supabase.table("sportkurse").select("kursnr,details,preis").is_("zeitraum_href", "null").execute()
+        sk4 = supabase.table("sportkurse").select("kursnr,details,preis").eq("zeitraum_href", "").execute()
+        def _append_sk(data, field):
+            for r in (data.data or []):
+                rows.append({
+                    "table_name": "sportkurse",
+                    "identifier": r.get("kursnr") or "",
+                    "missing_field": field,
+                    "context1": (r.get("details") or ""),
+                    "context2": (r.get("preis") or ""),
+                })
+        _append_sk(sk1, "offer_href")
+        _append_sk(sk2, "offer_href")
+        _append_sk(sk3, "zeitraum_href")
+        _append_sk(sk4, "zeitraum_href")
+    except Exception:
+        pass
+
+    # kurs_termine: fehlende ort_href, location_name, end_time
+    try:
+        kt1 = supabase.table("kurs_termine").select("kursnr,start_time").is_("ort_href", "null").execute()
+        kt2 = supabase.table("kurs_termine").select("kursnr,start_time").eq("ort_href", "").execute()
+        kt3 = supabase.table("kurs_termine").select("kursnr,start_time").is_("location_name", "null").execute()
+        kt4 = supabase.table("kurs_termine").select("kursnr,start_time").eq("location_name", "").execute()
+        kt5 = supabase.table("kurs_termine").select("kursnr,start_time").is_("end_time", "null").execute()
+        def _append_kt(data, field):
+            for r in (data.data or []):
+                identifier = f"{r.get('kursnr') or ''}|{(r.get('start_time') or '')[:19]}"
+                rows.append({
+                    "table_name": "kurs_termine",
+                    "identifier": identifier,
+                    "missing_field": field,
+                    "context1": r.get("kursnr") or "",
+                    "context2": (r.get("start_time") or "")[:19],
+                })
+        _append_kt(kt1, "ort_href")
+        _append_kt(kt2, "ort_href")
+        _append_kt(kt3, "location_name")
+        _append_kt(kt4, "location_name")
+        _append_kt(kt5, "end_time")
+    except Exception:
+        pass
+
+    # unisport_locations: fehlende lat, lng, ort_href, spid
+    try:
+        ul1 = supabase.table("unisport_locations").select("name").is_("lat", "null").execute()
+        ul2 = supabase.table("unisport_locations").select("name").is_("lng", "null").execute()
+        ul3 = supabase.table("unisport_locations").select("name").is_("ort_href", "null").execute()
+        ul4 = supabase.table("unisport_locations").select("name").eq("ort_href", "").execute()
+        ul5 = supabase.table("unisport_locations").select("name").is_("spid", "null").execute()
+        ul6 = supabase.table("unisport_locations").select("name").eq("spid", "").execute()
+        def _append_ul(data, field):
+            for r in (data.data or []):
+                rows.append({
+                    "table_name": "unisport_locations",
+                    "identifier": r.get("name") or "",
+                    "missing_field": field,
+                    "context1": "",
+                    "context2": "",
+                })
+        _append_ul(ul1, "lat")
+        _append_ul(ul2, "lng")
+        _append_ul(ul3, "ort_href")
+        _append_ul(ul4, "ort_href")
+        _append_ul(ul5, "spid")
+        _append_ul(ul6, "spid")
+    except Exception:
+        pass
+
+    # CSV schreiben
+    try:
+        out_path = os.path.join(os.path.dirname(__file__), "missing_info.csv")
+        with open(out_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["table_name", "identifier", "missing_field", "context1", "context2"])
+            for r in rows:
+                writer.writerow([
+                    r.get("table_name", ""),
+                    r.get("identifier", ""),
+                    r.get("missing_field", ""),
+                    r.get("context1", ""),
+                    r.get("context2", ""),
+                ])
+        print(f"CSV geschrieben: {out_path} ({len(rows)} Zeilen)")
+    except Exception as e:
+        print(f"Fehler beim Schreiben der CSV: {e}")
+    return rows
+
+
+def _load_overrides_json() -> Dict[str, object]:
+    overrides_path = os.path.join(os.path.dirname(__file__), "missing_overrides.json")
+    if not os.path.exists(overrides_path):
+        return {}
+    try:
+        with open(overrides_path, "r", encoding="utf-8") as fh:
+            return json.load(fh) or {}
+    except Exception:
+        return {}
+
+
+def _build_ignore_set_from_overrides(overrides: Dict[str, object]) -> set:
+    ignore: set = set()
+    # Each section is a list of { identifier, fields, ignore_valueerror? }
+    for section in [
+        ("sportangebote", "href"),
+        ("sportkurse", "kursnr"),
+        ("kurs_termine", "composite"),
+        ("unisport_locations", "name"),
+    ]:
+        key = section[0]
+        items = (overrides.get(key) or []) if isinstance(overrides, dict) else []
+        for it in items:  # type: ignore
+            try:
+                if it.get("ignore_valueerror") is True:
+                    ident = (it.get("identifier") or "").strip()
+                    if ident:
+                        ignore.add((key, ident))
+            except Exception:
+                continue
+    return ignore
+
+
+def send_missing_info_email_if_needed(rows: List[Dict[str, str]]) -> None:
+    """
+    Sendet eine E-Mail über Loops Transactional, wenn >0 Einträge fehlen.
+    ADMIN_EMAIL und LOOPS_API_KEY müssen als ENV gesetzt sein.
+    """
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    loops_api_key = os.environ.get("LOOPS_API_KEY", "").strip()
+    transactional_id = "cmhaf9k8f988i060i0tsb79io"
+    if not admin_email or not loops_api_key:
+        print("Hinweis: ADMIN_EMAIL oder LOOPS_API_KEY nicht gesetzt – überspringe E-Mail.")
+        return
+
+    # Lade optionales ignore_valueerror aus Overrides
+    overrides = _load_overrides_json()
+    ignore_set = _build_ignore_set_from_overrides(overrides)
+
+    # Filtere Einträge, die ignoriert werden sollen (nach Tabelle + Identifier)
+    filtered = [r for r in rows if (r.get("table_name"), r.get("identifier")) not in ignore_set]
+    if len(filtered) <= 0:
+        print("Keine fehlenden Einträge (nach Ignorieren) – keine E-Mail.")
+        return
+
+    # Baue JSON-Text
+    try:
+        missing_json_text = json.dumps(filtered, ensure_ascii=False, indent=2)
+    except Exception:
+        missing_json_text = str(filtered)
+
+    # Sende HTTP POST an Loops
+    try:
+        import requests
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        resp = requests.post(
+            "https://app.loops.so/api/v1/transactional",
+            headers={
+                "Authorization": f"Bearer {loops_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "transactionalId": transactional_id,
+                "email": admin_email,
+                "dataVariables": {
+                    "MissingValues": missing_json_text
+                }
+            },
+            timeout=30,
+        )
+        print(f"Loops API status: {resp.status_code} – {resp.text[:200]}")
+    except Exception as e:
+        print(f"Warnung: Konnte Loops-Transaktionsmail nicht senden: {e}")
+
+
 def main() -> None:
     # 1) Umgebungsvariablen aus einer .env-Datei laden (falls vorhanden)
     #    Warum? So müssen sensible Daten (z. B. Datenbank-Schlüssel) nicht im Code stehen.
@@ -546,6 +834,17 @@ def main() -> None:
     # Hinweis: Die Logik zum Erkennen und Markieren von Trainingsausfällen
     #          wurde nach update_cancellations.py ausgelagert, damit beide
     #          Skripte unabhängig voneinander lauffähig sind.
+
+    # 7) Missing-Info-Report erzeugen
+    try:
+        # 7a) Optionale Overrides anwenden, falls Datei vorhanden
+        apply_overrides(supabase)
+        # 7b) Danach Report generieren
+        rows = generate_missing_info_csv(supabase)
+        # 7c) Falls fehlende Einträge vorhanden sind, E-Mail an Admin schicken
+        send_missing_info_email_if_needed(rows)
+    except Exception as e:
+        print(f"Warnung: Missing-Info-CSV konnte nicht erzeugt werden: {e}")
 
 
 if __name__ == "__main__":

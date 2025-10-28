@@ -1,0 +1,66 @@
+{
+  "sportangebote": [
+    {
+      "identifier": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/_Fitnesstraining_Gym_-_Personal_training.html",
+      "fields": {
+        "image_url": "https://example.com/fitnesstraining.jpg",
+        "description": "<p>Beschreibung hier ...</p>"
+      }
+    }
+  ],
+  "sportkurse": [
+    {
+      "identifier": "300-302",
+      "fields": {
+        "offer_href": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/Boxen.html",
+        "zeitraum_href": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/Boxen_Termine.html"
+      }
+    }
+  ],
+  "kurs_termine": [
+    {
+      "identifier": "100-460|2025-12-08T18:30:00",
+      "fields": { "location_name": "" }
+    },
+    {
+      "identifier": "300-302|2025-10-15T12:30:00",
+      "fields": {
+        "location_name": ""
+      }
+    },
+    {
+      "identifier": "300-304|2025-10-30T12:30:00",
+      "fields": { "location_name": "" }
+    },
+    {
+      "identifier": "300-305|2025-11-13T12:30:00",
+      "fields": { "location_name": "" }
+    },
+    {
+      "identifier": "400-689|2025-11-18T17:00:00",
+      "fields": { "location_name": "" }
+    }
+  ],
+  "unisport_locations": [
+    { "identifier": "Bubble Yoga", "fields": { "lat": null, "lng": null } },
+    { "identifier": "Bubble Yoga ", "fields": { "ort_href": "", "spid": "" } },
+    { "identifier": "Extern", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, 01-U203", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Bodanstrasse 1, 25-203", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Halle Eingang Höhenweg", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, OutdoorGym", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Raum 01-104", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Raum 09-112", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Raum 22-007", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Raum 22-101", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Sanit&#228;tsraum Sporthalle", "fields": { "ort_href": "", "spid": "" } },
+    { "identifier": "HSG, Sanitätsraum Sporthalle", "fields": { "lat": null, "lng": null } },
+    { "identifier": "HSG, Square", "fields": { "lat": null, "lng": null } },
+    { "identifier": "Online Beratung", "fields": { "lat": null, "lng": null } },
+    { "identifier": "Online Workshop", "fields": { "lat": null, "lng": null } },
+    { "identifier": "Sportfeld Gr&#252;ndenmoos", "fields": { "ort_href": "", "spid": "" } },
+    { "identifier": "Sportfeld Gründenmoos", "fields": { "lat": null, "lng": null } },
+    { "identifier": "Turnhalle Sch&#246;nenwegen", "fields": { "ort_href": "", "spid": "" } },
+    { "identifier": "Turnhalle Schönenwegen", "fields": { "lat": null, "lng": null } }
+  ]
+}

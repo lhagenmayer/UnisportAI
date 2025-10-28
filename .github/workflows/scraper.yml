@@ -55,8 +55,33 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          LOOPS_API_KEY: ${{ secrets.LOOPS_API_KEY }}
         run: |
           python .scraper/scrape_sportangebote.py
+
+      - name: Show generated missing files
+        if: always()
+        run: |
+          echo "Listing .scraper contents:" && ls -la .scraper || true
+          echo "Preview missing_info.csv (head):" && head -n 20 .scraper/missing_info.csv || true
+          echo "Preview missing_overrides.json:" && cat .scraper/missing_overrides.json || true
+
+      - name: Upload missing_info.csv artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: missing_info_csv
+          path: .scraper/missing_info.csv
+          if-no-files-found: warn
+
+      - name: Upload missing_overrides.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: missing_overrides_json
+          path: .scraper/missing_overrides.json
+          if-no-files-found: warn
 
       - name: Run update_cancellations.py
         env:
