@@ -51,9 +51,9 @@ def show_tos_acceptance_required():
     
     # Read the TOS and Privacy Policy files
     try:
-        with open('TERMS_OF_SERVICE.md', 'r', encoding='utf-8') as f:
+        with open('docs/TERMS_OF_SERVICE.md', 'r', encoding='utf-8') as f:
             tos_content = f.read()
-        with open('PRIVACY_POLICY.md', 'r', encoding='utf-8') as f:
+        with open('docs/PRIVACY_POLICY.md', 'r', encoding='utf-8') as f:
             privacy_content = f.read()
     except Exception as e:
         st.error(f"Fehler beim Laden der Dokumente: {e}")
