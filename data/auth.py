@@ -58,48 +58,33 @@ def show_login_page():
     st.markdown("---")
     
     # Info section
-    col1, col2 = st.columns(2)
+    st.markdown("""
+    #### 🎯 Was ist UnisportAI?
+    Eine intelligente Plattform zur Entdeckung und Verwaltung von Sportangeboten an der HSG.
     
-    with col1:
-        st.markdown("""
-        #### 🎯 Was ist UnisportAI?
-        Eine intelligente Plattform zur Entdeckung und Verwaltung von Sportangeboten an der HSG.
-        
-        **Features:**
-        - 📅 Übersicht aller Kurse und Termine
-        - ⭐ Bewertungssystem für Kurse und Trainer
-        - ❤️ Favoriten für Ihre Lieblingssportarten
-        - 📆 Kalender-Integration (iCal)
-        - 🔍 Erweiterte Such- und Filterfunktionen
-        """)
+    **Features:**
+    - 📅 Übersicht aller Kurse und Termine
+    - ⭐ Bewertungssystem für Kurse und Trainer
+    - ❤️ Favoriten für Ihre Lieblingssportarten
+    - 📆 Kalender-Integration (iCal)
+    - 🔍 Erweiterte Such- und Filterfunktionen
     
-    with col2:
-        st.markdown("""
-        #### 🔐 Sicherheit & Datenschutz
-        Ihre Daten sind bei uns sicher:
-        - ✅ Google OAuth Authentifizierung
-        - ✅ GDPR-konforme Datenverarbeitung
-        - ✅ Verschlüsselte Datenübertragung
-        - ✅ Sichere Datenbank-Infrastruktur
-        
-        **Keine Passwörter nötig** - einfach mit Google anmelden!
-        """)
+    **Keine Passwörter nötig** - einfach mit Google anmelden!
+    """)
     
     st.markdown("---")
     
-    # Login button (centered and prominent)
+    # Login button
     st.markdown("#### Anmeldung mit Google")
     
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        login_button = st.button(
-            "🔵 Mit Google anmelden",
-            on_click=st.login, 
-            args=["google"], 
-            use_container_width=True, 
-            type="primary",
-            key="google_login_button"
-        )
+    login_button = st.button(
+        "🔵 Mit Google anmelden",
+        on_click=st.login, 
+        args=["google"], 
+        use_container_width=True, 
+        type="primary",
+        key="google_login_button"
+    )
     
     st.markdown("---")
     
