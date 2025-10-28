@@ -1,0 +1,12 @@
+streamlit>=1.38
+st-supabase-connection>=1.0.3
+supabase>=2.6
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.2
+python-dateutil>=2.9
+icalendar>=5.0
+python-dotenv>=1.0
+urllib3>=2.2
+
+

@@ -56,3 +56,5 @@ Thumbs.db
 # Google OAuth Credentials
 client_secret_*.json
 *.apps.googleusercontent.com.json
+
+temporary_docs/
