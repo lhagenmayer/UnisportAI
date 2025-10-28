@@ -2,7 +2,7 @@
   "sportangebote": [
     {
       "identifier": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/_Fitnesstraining_Gym_-_Personal_training.html",
-      "ignore_valueerror": false,
+      "ignore_valueerror": true,
       "fields": {
         "image_url": "https://example.com/fitnesstraining.jpg",
         "description": "<p>Beschreibung hier ...</p>"
@@ -14,8 +14,7 @@
       "identifier": "300-302",
       "ignore_valueerror": false,
       "fields": {
-        "offer_href": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/Boxen.html",
-        "zeitraum_href": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/Boxen_Termine.html"
+        "offer_href": "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/_Boxen.html"
       }
     }
   ],
