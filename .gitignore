@@ -25,6 +25,7 @@ wheels/
 
 # Streamlit
 .streamlit/secrets.toml
+SECRETS_FOR_STREAMLIT_CLOUD.txt
 
 # IDE
 .idea/

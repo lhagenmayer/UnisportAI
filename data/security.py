@@ -8,20 +8,6 @@ from typing import Any, Optional
 import streamlit as st
 
 
-def validate_email(email: str) -> bool:
-    """Validate email format"""
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return bool(re.match(pattern, email))
-
-
-def validate_url(url: str) -> bool:
-    """Validate URL format"""
-    if not url:
-        return True  # Empty URL is valid (optional field)
-    pattern = r'^https?://[^\s/$.?#].[^\s]*$'
-    return bool(re.match(pattern, url))
-
-
 def sanitize_html(text: str) -> str:
     """Escape HTML to prevent XSS attacks"""
     if not text:
@@ -67,40 +53,6 @@ def validate_comment(text: str, max_length: int = 2000) -> tuple[bool, Optional[
     return True, None
 
 
-def validate_user_input(input_type: str, value: Any) -> tuple[bool, Optional[str]]:
-    """
-    Centralized input validation
-    Returns: (is_valid, error_message)
-    """
-    if input_type == "email":
-        if not validate_email(str(value)):
-            return False, "Invalid email format"
-        return True, None
-    
-    elif input_type == "url":
-        if not validate_url(str(value)):
-            return False, "Invalid URL format"
-        return True, None
-    
-    elif input_type == "rating":
-        if not validate_rating(value):
-            return False, "Rating must be between 1 and 5"
-        return True, None
-    
-    elif input_type == "comment":
-        is_valid, error_msg = validate_comment(str(value))
-        return is_valid, error_msg
-    
-    elif input_type == "text":
-        if not isinstance(value, str):
-            return False, "Invalid text input"
-        if len(value) > 500:
-            return False, "Text exceeds maximum length"
-        return True, None
-    
-    return True, None
-
-
 def secure_log(level: str, message: str, details: dict = None):
     """
     Securely log events without exposing sensitive data
@@ -120,7 +72,7 @@ def secure_log(level: str, message: str, details: dict = None):
         safe_details = {}
     
     # In production, this should go to a proper logging system
-    # For now, we'll just show it in the console
+    # For now, just keep it simple
     if "security_log" not in st.session_state:
         st.session_state["security_log"] = []
     

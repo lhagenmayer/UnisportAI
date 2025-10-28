@@ -146,30 +146,4 @@ def save_tos_acceptance():
         return False
 
 
-def revoke_tos_acceptance():
-    """
-    Allow users to revoke TOS/Privacy acceptance (deletes account)
-    This is a nuclear option - the user will be logged out
-    """
-    from data.auth import is_logged_in
-    if not is_logged_in():
-        return False
-    
-    try:
-        user_sub = get_user_sub()
-        if not user_sub:
-            return False
-        
-        client = get_supabase_client()
-        
-        # Delete the user from database
-        client.table("users").delete().eq("sub", user_sub).execute()
-        
-        # Log out the user
-        st.logout()
-        
-        return True
-    except Exception as e:
-        st.error(f"Fehler beim Widerrufen: {e}")
-        return False
 

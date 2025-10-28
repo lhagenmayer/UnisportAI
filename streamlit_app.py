@@ -42,10 +42,11 @@ from data.user_management import is_admin
 overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯")
 details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
 calendar_page = st.Page("pages/calendar.py", title="Calendar", icon="📆")
+athletes_page = st.Page("pages/athletes.py", title="Sportfreunde", icon="👥")
 profile_page = st.Page("pages/profile.py", title="My Profile", icon="👤")
 
 # Add admin page only if user is admin
-pages = [overview_page, details_page, calendar_page, profile_page]
+pages = [overview_page, details_page, calendar_page, athletes_page, profile_page]
 
 if is_admin():
     admin_page = st.Page("pages/admin.py", title="Admin Panel", icon="🔧")

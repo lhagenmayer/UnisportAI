@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from data.supabase_client import get_all_events
 from data.state_manager import store_page_3_to_page_2_filters, get_filter_state, set_filter_state
 from data.shared_sidebar import render_shared_sidebar
-from data.auth import is_logged_in
+from data.auth import is_logged_in, get_user_sub
 
 # Check authentication
 if not is_logged_in():
@@ -13,7 +13,96 @@ if not is_logged_in():
 st.title("📅 Calendar View")
 st.markdown("### Weekly overview of all course dates")
 
+
+def get_user_id() -> str:
+    """Holt die user_id aus der users Tabelle"""
+    try:
+        user_sub = get_user_sub()
+        if not user_sub:
+            return None
+        
+        from data.supabase_client import supaconn
+        conn = supaconn()
+        result = conn.table("users").select("id").eq("sub", user_sub).execute()
+        return result.data[0]['id'] if result.data else None
+    except Exception:
+        return None
+
+
+def notify_friends_about_event(user_id: str, event_id: str, event_details: dict) -> bool:
+    """Benachrichtigt Freunde über einen Termin"""
+    if not user_id:
+        return False
+        
+    try:
+        from data.supabase_client import supaconn
+        conn = supaconn()
+        
+        # Hole alle Freunde
+        friendships = conn.table("user_friends").select("*").or_(
+            f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
+        ).execute()
+        
+        if not friendships.data:
+            return False
+        
+        # Bestimme welche User die Freunde sind
+        friend_ids = []
+        for friendship in friendships.data:
+            if friendship['requester_id'] == user_id:
+                friend_ids.append(friendship['addressee_id'])
+            else:
+                friend_ids.append(friendship['requester_id'])
+        
+        # Füge Notifications hinzu
+        notifications = []
+        for friend_id in friend_ids:
+            notifications.append({
+                "user_id": user_id,
+                "friend_id": friend_id,
+                "event_id": event_id,
+                "created_at": datetime.now().isoformat()
+            })
+        
+        if notifications:
+            conn.table("friend_course_notifications").insert(notifications).execute()
+        
+        return True
+    except Exception:
+        return False
+
+
+def get_friends_attending_same_events(user_id: str, event_id: str) -> list:
+    """Holt Freunde, die denselben Termin besuchen"""
+    if not user_id:
+        return []
+    
+    try:
+        from data.supabase_client import supaconn
+        conn = supaconn()
+        
+        # Suche nach Notifications, wo der aktuelle User der friend ist
+        notifications = conn.table("friend_course_notifications").select(
+            "*, user:users!user_id(*)"
+        ).eq("friend_id", user_id).eq("event_id", event_id).execute()
+        
+        return notifications.data or []
+    except Exception:
+        return []
+
+
+def mark_event_attendance(event_id: str, event_details: dict) -> bool:
+    """Markiert einen Termin als besucht und benachrichtigt Freunde"""
+    user_id = get_user_id()
+    if not user_id:
+        return False
+    
+    return notify_friends_about_event(user_id, event_id, event_details)
+
 # Navigation will be handled by shared sidebar
+
+# Get user_id for friend functionality
+user_id = get_user_id()
 
 # Fetch events for ALL offers
 with st.spinner('Lade alle Kurstermine...'):
@@ -346,12 +435,25 @@ for week_num in range(weeks_to_show):
                         bg_color = "#e8f5e9"
                         border_color = "green"
                     
+                    # Check if friends are attending
+                    event_id = f"{date_str}_{time_str}_{sport_name}"
+                    friends_attending = []
+                    if user_id:
+                        friends_attending = get_friends_attending_same_events(user_id, event_id)
+                    
                     # Create clickable card
                     with st.container():
                         col1, col2 = st.columns([6, 1])
                         with col1:
+                            # Show friend indicator
+                            friend_indicator = ""
+                            if friends_attending:
+                                friend_names = [f.get('user', {}).get('name', 'Freund') if isinstance(f.get('user'), dict) else 'Freund' for f in friends_attending]
+                                friend_indicator = f"<small>👥 {len(friends_attending)} {'Freund' if len(friends_attending) == 1 else 'Freunde'}</small><br>"
+                            
                             st.markdown(f"""<div style="background-color: {bg_color}; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-left: 3px solid {border_color}; cursor: pointer;">
                                 {color} <b>{time_str}</b><br>
+                                {friend_indicator}
                                 <small><b>{sport_display}</b></small><br>
                                 <small>{location}</small>
                             </div>""", unsafe_allow_html=True)

@@ -55,6 +55,45 @@ def get_user_profile(user_sub: Optional[str] = None) -> Optional[Dict[str, Any]]
         return None
 
 
+def get_or_create_ical_feed_token(user_sub: str) -> str:
+    """
+    Holt oder erstellt einen persönlichen iCal Feed Token für den User.
+    
+    Args:
+        user_sub: Sub des Users
+        
+    Returns:
+        str: Token für die iCal Feed URL
+    """
+    try:
+        client = get_supabase_client()
+        
+        # Hole aktuelles Profil
+        result = client.table("users").select("id, ical_feed_token").eq("sub", user_sub).execute()
+        
+        if not result.data:
+            return None
+        
+        user = result.data[0]
+        token = user.get('ical_feed_token')
+        
+        # Erstelle Token falls nicht vorhanden
+        if not token:
+            import uuid
+            token = str(uuid.uuid4())
+            
+            # Speichere Token in DB
+            client.table("users").update({
+                "ical_feed_token": token,
+                "updated_at": datetime.now().isoformat()
+            }).eq("sub", user_sub).execute()
+        
+        return token
+    except Exception as e:
+        st.error(f"Fehler beim Erstellen des Tokens: {e}")
+        return None
+
+
 def update_user_preferences(preferences: Dict[str, Any]) -> bool:
     """Aktualisiert die User-Präferenzen"""
     import json
@@ -167,7 +206,7 @@ def render_user_profile_page():
         return
     
     # Layout mit Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Informationen", "⚙️ Präferenzen", "📅 Kalender", "📊 Aktivität"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Informationen", "⚙️ Präferenzen", "📅 Kalender", "🌐 Sichtbarkeit", "📊 Aktivität"])
     
     with tab1:
         st.subheader("Benutzerinformationen")
@@ -213,6 +252,27 @@ def render_user_profile_page():
                 st.warning("⚠️ Privacy Policy nicht akzeptiert")
         
         st.info("💡 Diese Zustimmungen sind erforderlich, um die Anwendung zu nutzen.")
+        
+        # Bio Editing
+        st.divider()
+        st.subheader("📝 Über mich")
+        
+        current_bio = profile.get('bio', '') or ''
+        new_bio = st.text_area("Biographie", value=current_bio, max_chars=500, help="Beschreiben Sie sich selbst")
+        
+        if st.button("Bio speichern"):
+            try:
+                client = get_supabase_client()
+                user_sub = get_user_sub()
+                client.table("users").update({
+                    "bio": new_bio,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("sub", user_sub).execute()
+                st.success("✅ Bio wurde aktualisiert!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Fehler beim Speichern: {e}")
+        
     
     with tab2:
         st.subheader("Präferenzen")
@@ -285,14 +345,81 @@ def render_user_profile_page():
     
     # New tab for calendar and additional settings
     with tab3:
-        st.subheader("📅 Privater Kalender")
+        st.subheader("📅 Meine Kalender")
+        
+        # === iCal Feed für angemeldete Kurse ===
+        st.markdown("#### 📅 iCal Feed für angemeldete Kurse")
+        
+        try:
+            from data.ical_generator import generate_dynamic_ical_with_attendees
+            
+            # Get user sub and create/retrieve token
+            user_sub = get_user_sub()
+            ical_token = get_or_create_ical_feed_token(user_sub)
+            
+            if ical_token:
+                # Get Supabase URL for Edge Function
+                supabase_url = st.secrets.get("connections", {}).get("supabase", {}).get("url", "")
+                project_ref = supabase_url.replace("https://", "").replace(".supabase.co", "") if supabase_url else ""
+                
+                if project_ref:
+                    # Generate personalized Feed URL with token
+                    ical_feed_url = f"https://{project_ref}.supabase.co/functions/v1/ical-feed?token={ical_token}"
+                    
+                    st.text_input("🔗 Deine persönliche iCal Feed URL", ical_feed_url, disabled=True, label_visibility="visible")
+                    st.caption("💡 Kopiere diese URL und füge sie zu deinem Kalender hinzu")
+                    
+                    # Generate iCal content for optional download
+                    ical_content = generate_dynamic_ical_with_attendees()
+                    st.download_button(
+                        "📥 .ics als Fallback herunterladen",
+                        data=ical_content,
+                        file_name="unisport_meine_kurse.ics",
+                        mime="text/calendar",
+                        use_container_width=False
+                    )
+                    
+                    st.markdown("""
+                    **📋 So abonnierst du den Feed:**
+                    - **Google Calendar**: Einstellungen → "Kalender hinzufügen" → "Von URL" 
+                    - **Outlook**: Kalender → "Abonnieren" → "Von Internet"
+                    - **Apple Calendar**: Kalender → "Abonnieren"
+                    
+                    **✨ Dynamischer Feed:** 
+                    - Deine "going" Events werden **sofort** nach dem Klick hinzugefügt
+                    - Freunde die später auch teilnehmen erscheinen **automatisch** als ATTENDEE
+                    - Alle neuen Events syncen **automatisch** mit deinem Kalender
+                    """)
+                    
+                    st.success("✅ Dein persönlicher iCal Feed ist bereit!")
+                else:
+                    st.warning("⚠️ Edge Function nicht verfügbar - nutze Download als Alternative")
+                    # Fallback: Nur Download
+                    ical_content = generate_dynamic_ical_with_attendees()
+                    st.download_button(
+                        "📥 .ics Datei herunterladen",
+                        data=ical_content,
+                        file_name="unisport_meine_kurse.ics",
+                        mime="text/calendar"
+                    )
+            else:
+                st.error("❌ Konnte keinen Token erstellen. Bitte versuche es erneut.")
+        except Exception as e:
+            st.error(f"Fehler beim Laden des iCal Feeds: {e}")
+        
+        st.divider()
+        
+        # === Privater Kalender URL Eingabe ===
+        st.markdown("#### 🔗 Privater Kalender (optional)")
+        st.info("💡 Füge hier die URL zu deinem externen Kalender hinzu.")
         
         # iCal URL Eingabe
         ical_url = profile.get('ical_url', '') or ''
         new_ical_url = st.text_input(
             "iCal URL",
             value=ical_url,
-            help="Geben Sie die URL zu Ihrem privaten Kalender (iCal) ein"
+            help="Geben Sie die URL zu Ihrem privaten Kalender (iCal) ein",
+            placeholder="https://example.com/calendar.ics"
         )
         
         if st.button("Kalender speichern"):
@@ -308,8 +435,54 @@ def render_user_profile_page():
             except Exception as e:
                 st.error(f"Fehler beim Speichern: {e}")
     
-    # Activity tab
+    # Visibility settings tab
     with tab4:
+        st.subheader("🌐 Profil-Sichtbarkeit")
+        st.info("📌 Bestimmen Sie, ob andere Sportfreunde Ihr Profil sehen und Ihnen folgen können.")
+        
+        current_is_public = profile.get('is_public', False)
+        is_public = st.checkbox(
+            "Profil öffentlich machen",
+            value=current_is_public,
+            help="Wenn aktiviert, können andere Benutzer Ihr Profil auf der 'Sportfreunde'-Seite sehen und Ihnen folgen."
+        )
+        
+        if st.button("Sichtbarkeit speichern"):
+            try:
+                client = get_supabase_client()
+                user_sub = get_user_sub()
+                client.table("users").update({
+                    "is_public": is_public,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("sub", user_sub).execute()
+                st.success("✅ Sichtbarkeit wurde aktualisiert!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Fehler beim Speichern: {e}")
+        
+        st.divider()
+        
+        # Show friend count
+        try:
+            client = get_supabase_client()
+            user_sub = get_user_sub()
+            user_result = client.table("users").select("id").eq("sub", user_sub).execute()
+            
+            if user_result.data:
+                user_id = user_result.data[0]['id']
+                
+                # Zähle Freundschaften
+                friendships = client.table("user_friends").select("*").or_(
+                    f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
+                ).execute()
+                
+                friend_count = len(friendships.data) if friendships.data else 0
+                st.metric("Freunde", friend_count)
+        except Exception as e:
+            pass
+    
+    # Activity tab
+    with tab5:
         st.subheader("Meine Aktivität")
         
         # Zeige Session-Aktivitäten

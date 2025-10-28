@@ -17,6 +17,10 @@ Unisport AI is a platform that helps you discover and manage sports activities o
 - Rate and review sports activities and trainers
 - Manage personal calendar integration
 - Access personalized recommendations
+- Find and connect with other athletes through public profiles
+- Send and receive friend requests
+- Share course attendance with friends
+- View which courses your friends are attending
 
 ## 3. User Accounts
 
@@ -66,6 +70,10 @@ We collect the following information from your Google account:
 - Ratings and reviews of activities and trainers
 - Personal calendar URL (iCal) if provided
 - User preferences and settings
+- Public profile information (if you choose to make your profile public)
+- Biography or profile description
+- Friend connections and relationships
+- Course attendance notifications you share with friends
 
 ### 5.3 How We Use Your Data
 - To provide and improve the Service
@@ -153,6 +161,14 @@ We use the following third-party services to provide our Service. Each service o
 - You may optionally provide your personal calendar URL
 - We store this URL but do not access your calendar without your explicit permission
 - You are responsible for the security of your calendar URL
+
+### 8.4 Dynamic iCal Feed and Attendee Information
+- We provide a dynamic iCal feed that includes your "going" course events
+- Your iCal feed is protected by authentication and only accessible to you with a valid token
+- If you and your friends are attending the same course, your friends' email addresses may appear as ATTENDEE entries in your personal iCal feed (and vice versa)
+- This feature allows you to see which friends are attending the same courses
+- Friend email addresses in ATTENDEE entries are included only for courses where both you and your friend are marked as "going"
+- You can control this by managing your friend connections and course attendance preferences
 - This is an optional feature you can disable at any time
 
 ## 9. Disclaimers and Limitations

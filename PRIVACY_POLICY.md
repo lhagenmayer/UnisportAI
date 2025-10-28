@@ -21,18 +21,38 @@ When you register using Google OAuth, we collect the following information (Lega
 - **Ratings and Reviews**: Your ratings (1-5 stars) and comments for sports activities and trainers (Legal Basis: Consent)
 - **Personal Calendar URL**: Your iCal calendar URL if you choose to link it (Legal Basis: Consent)
 - **User Preferences**: Settings and preferences you configure in your profile (Legal Basis: Consent)
+- **Public Profile**: If you choose to make your profile public, your name, profile picture, and biography may be visible to other users (Legal Basis: Consent)
+- **Friend Connections**: Information about your friend relationships and connections with other users (Legal Basis: Consent)
+- **Course Notifications**: Information about which courses you attend that you share with your friends (Legal Basis: Consent)
 
 ### 2.3 Automatically Collected Information
 - **Usage Data**: How you interact with the Service (Legal Basis: Legitimate Interests)
 - **Session Information**: Session state and preferences (Legal Basis: Contract Performance)
 - **Technical Data**: Timestamps, logins, and activity records (Legal Basis: Legitimate Interests)
+- **Profile Visibility**: Whether your profile is set to public or private (stored for display preferences)
 
-### 2.4 Legal Basis for Processing (GDPR Article 6)
+### 2.4 Social Features Data
+- **Friend Requests**: Requests you send and receive from other users (Legal Basis: Consent)
+- **Friend Relationships**: Mutual friend connections between you and other users (Legal Basis: Consent)
+- **Course Notifications**: Notifications about courses your friends are attending (Legal Basis: Legitimate Interests)
+- **Friend Email Addresses in iCal Feed**: If you and your friends are attending the same course, your friends' email addresses are included as ATTENDEE entries in your personal iCal calendar feed (Legal Basis: Consent)
+
+### 2.5 Dynamic iCal Feed Data
+- **Event Participation Data**: Information about which courses you have marked as "going" (Legal Basis: Consent)
+- **Friend Attendee Information**: Email addresses of friends who are also attending the same courses (Legal Basis: Consent, based on mutual friend relationships)
+- **Authentication Tokens**: Secure tokens used to access your personalized iCal feed (Legal Basis: Contract Performance)
+
+### 2.6 Legal Basis for Processing (numbered sections)
+
+#### GDPR Article 6 Legal Basis
 We process your personal data based on:
-- **Consent**: When you provide explicit consent (ratings, favorites, calendar URL)
-- **Contract Performance**: To provide the Service as agreed
+- **Consent**: When you provide explicit consent (ratings, favorites, calendar URL, friend connections, course attendance)
+- **Contract Performance**: To provide the Service as agreed (OAuth authentication, user account management, iCal feed generation)
 - **Legitimate Interests**: For security, fraud prevention, and service improvement
 - **Legal Obligation**: When required by applicable laws
+
+#### Specific Data Processing:
+- **Friend Email Addresses in iCal**: Processed based on your consent to friend relationships and course attendance sharing. You can withdraw this consent at any time by removing friend connections or changing your attendance status.
 
 ## 3. How We Use Your Information
 
@@ -84,7 +104,15 @@ We implement appropriate technical and organizational security measures:
 ### 5.1 We Do Not Sell Your Data
 We do not sell, trade, or rent your personal information to third parties.
 
-### 5.2 Limited Sharing
+### 5.2 Friend Email Visibility
+**Important**: If you and your friends are both marked as "going" to the same course:
+- Your friends' email addresses appear in your personal iCal calendar feed as ATTENDEE entries
+- Your email address appears in your friends' iCal calendar feeds as ATTENDEE entries
+- This information is only included in personalized iCal feeds protected by authentication
+- Only users with valid authentication tokens can access their own personalized iCal feed
+- You can control this by managing your friend connections and course attendance
+
+### 5.3 Limited Sharing
 We may share your information with the following third-party service providers (data processors):
 
 #### Third-Party Service Providers (Subprocessors)
@@ -117,6 +145,9 @@ We may share your information with the following third-party service providers (
 #### With Other Users
 - **Public Ratings**: Your ratings and comments are visible to all users (attributed to your display name)
 - **Profile Information**: Name and profile picture may be visible in ratings/reviews
+- **Public Profiles**: If you enable public profile settings, your name, profile picture, and biography may be visible to all users on the platform
+- **Friend Connections**: Your friend connections are visible to your mutual friends
+- **Course Attendance**: When you notify friends about course attendance, they can see which courses you are planning to attend
 
 #### For Legal Reasons
 - If required by law or legal process
