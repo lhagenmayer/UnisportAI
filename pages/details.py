@@ -15,7 +15,7 @@ from data.state_manager import (
     clear_selected_offers_multiselect, has_selected_offer, get_selected_offer,
     set_selected_offer, set_multiple_offers, has_multiple_offers
 )
-from data.shared_sidebar import render_shared_sidebar
+from data.shared_sidebar import render_filters_sidebar
 from data.rating import render_sportangebot_rating_widget, render_trainer_rating_widget, get_average_rating_for_offer, get_average_rating_for_trainer
 from data.auth import is_logged_in, get_user_sub
 
@@ -142,8 +142,15 @@ if not events:
     st.info("📅 No course dates available.")
     st.stop()
 
-# Render sidebar
-render_shared_sidebar(filter_type='detail', events=events)
+# Load sports data for activity filters (optional)
+try:
+    from data.supabase_client import get_offers_with_stats
+    sports_data = get_offers_with_stats()
+except Exception:
+    sports_data = None
+
+# Render filter sidebar (includes user info at bottom)
+render_filters_sidebar(sports_data=sports_data, events=events)
 
 # Get filter states
 selected_sports = get_filter_state('offers', [])
@@ -199,10 +206,6 @@ for e in events:
     
     filtered_events.append(e)
 
-# Results count
-with st.sidebar:
-    st.info(f"📅 {len(filtered_events)} of {len(events)} dates")
-
 if not filtered_events:
     st.info("🔍 No events match the selected filters.")
     st.stop()
@@ -212,8 +215,6 @@ weekdays_de = {
     'Monday': 'Montag', 'Tuesday': 'Dienstag', 'Wednesday': 'Mittwoch',
     'Thursday': 'Donnerstag', 'Friday': 'Freitag', 'Saturday': 'Samstag', 'Sunday': 'Sonntag'
 }
-
-st.subheader(f"📅 {len(filtered_events)} Course Dates")
 
 for idx, event in enumerate(filtered_events):
     # Parse datetime
@@ -290,16 +291,18 @@ for idx, event in enumerate(filtered_events):
                         if unmark_user_going_to_event(current_user_id, event_id):
                             st.success("✅ Cancelled successfully")
                             st.rerun()
+                        else:
+                            st.error("❌ Failed to cancel. Please try again.")
                 else:
                     if st.button("✅ Join", key=f"going_{idx}", use_container_width=True, type="primary"):
                         if mark_user_going_to_event(current_user_id, event_id):
                             st.success("🎉 You're now attending!")
                             st.rerun()
-        
-        st.divider()
+                        else:
+                            st.error("❌ Failed to join event. Please try again.")
 
 # Rating section (only for single activity view)
-if st.user.is_logged_in and has_selected_offer() and not showing_multiple_offers():
+if st.user.is_logged_in and has_selected_offer() and not showing_multiple_offers:
     # Collect trainers
     all_trainers = set()
     for event in filtered_events:
@@ -313,18 +316,17 @@ if st.user.is_logged_in and has_selected_offer() and not showing_multiple_offers
         st.subheader("⭐ Rate Trainers")
         st.caption("Share your experience with trainers you know")
         
-        with st.expander(f"Rate {len(all_trainers)} trainer{'s' if len(all_trainers) != 1 else ''}", expanded=False):
-            for trainer_name in sorted(all_trainers):
-                rating_info = get_average_rating_for_trainer(trainer_name)
-                
-                if rating_info['count'] > 0:
-                    stars = '⭐' * int(round(rating_info['avg']))
-                    st.markdown(f"**{trainer_name}** {stars} {rating_info['avg']:.1f}/5 ({rating_info['count']} reviews)")
-                else:
-                    st.markdown(f"**{trainer_name}** - No reviews yet")
-                
-                render_trainer_rating_widget(trainer_name)
-                st.divider()
+        for trainer_name in sorted(all_trainers):
+            rating_info = get_average_rating_for_trainer(trainer_name)
+            
+            if rating_info['count'] > 0:
+                stars = '⭐' * int(round(rating_info['avg']))
+                st.markdown(f"**{trainer_name}** {stars} {rating_info['avg']:.1f}/5 ({rating_info['count']} reviews)")
+            else:
+                st.markdown(f"**{trainer_name}** - No reviews yet")
+            
+            render_trainer_rating_widget(trainer_name)
+            st.divider()
     
     # Activity rating
     st.subheader("⭐ Rate This Activity")

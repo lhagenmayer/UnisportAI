@@ -30,13 +30,17 @@ def render_athletes_page():
     
     # Check authentication
     if not is_logged_in():
-        st.error("❌ Bitte melden Sie sich an, um Sportfreunde zu finden.")
+        st.error("❌ Bitte melden Sie sich an, um Athletes zu finden.")
         st.stop()
     
     current_user_id = get_user_id()
     if not current_user_id:
         st.error("❌ Fehler beim Laden Ihres Profiles.")
         st.stop()
+    
+    # Render user info in sidebar (always visible on all pages)
+    from data.shared_sidebar import render_sidebar_user_info
+    render_sidebar_user_info()
     
     # Page header
     st.title("👥 Athletes & Friends")

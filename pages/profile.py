@@ -16,12 +16,16 @@ from data.supabase_client import (
     get_friend_count
 )
 from data.state_manager import get_user_activities
-from data.auth import is_logged_in, get_user_sub
+from data.auth import is_logged_in, get_user_sub, handle_logout
 
 # Check authentication
 if not is_logged_in():
     st.error("❌ Bitte melden Sie sich an.")
     st.stop()
+
+# Render user info in sidebar (always visible on all pages)
+from data.shared_sidebar import render_sidebar_user_info
+render_sidebar_user_info()
 
 # Page header
 st.title("👤 My Profile")
@@ -278,4 +282,13 @@ with tab3:
                 st.caption(f"💡 You're connected with {friend_count} athlete{'s' if friend_count != 1 else ''} and registered for {event_count} course{'s' if event_count != 1 else ''}")
     except Exception:
         pass
+    
+    st.divider()
+    
+    # Logout section
+    st.subheader("🚪 Logout")
+    st.caption("Sign out of your account")
+    
+    if st.button("🚪 Logout", type="primary", use_container_width=True):
+        handle_logout()
 

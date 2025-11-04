@@ -5,6 +5,107 @@ Authentifizierungsmodul für Streamlit mit Google OIDC und Supabase
 import streamlit as st
 from datetime import datetime, timezone
 import json
+import os
+
+
+def _get_redirect_uri() -> str:
+    """
+    Returns the appropriate redirect URI based on environment.
+    - Local: http://localhost:8501/oauth2callback (or configured port)
+    - Cloud: https://unisportai.streamlit.app/oauth2callback
+    
+    This function is used to dynamically determine the redirect URI.
+    Note: Streamlit's st.login() reads from secrets, so we also update
+    the secrets structure if possible, or use environment variables.
+    """
+    # Check if running on Streamlit Cloud
+    # Streamlit Cloud sets specific environment variables
+    is_cloud = False
+    
+    # Method 1: Check for Streamlit Cloud environment variables
+    if os.environ.get("STREAMLIT_SHARING_MODE"):
+        is_cloud = True
+    
+    # Method 2: Check if we're accessing via streamlit.app domain
+    try:
+        # Check if we can detect the base URL
+        if hasattr(st, 'get_option'):
+            base_url = st.get_option("server.baseUrlPath") or ""
+            if "streamlit.app" in base_url:
+                is_cloud = True
+    except Exception:
+        pass
+    
+    # Method 3: Check environment variables that Streamlit Cloud sets
+    if os.environ.get("STREAMLIT_SERVER_BASE_URL"):
+        base_url = os.environ.get("STREAMLIT_SERVER_BASE_URL", "")
+        if "streamlit.app" in base_url:
+            is_cloud = True
+    
+    # Return appropriate URI
+    if is_cloud:
+        return "https://unisportai.streamlit.app/oauth2callback"
+    else:
+        # Local development - use localhost
+        # Try to get port from config or default to 8501
+        try:
+            if hasattr(st, 'get_option'):
+                port = st.get_option("server.port") or 8501
+            else:
+                port = int(os.environ.get("STREAMLIT_SERVER_PORT", "8501"))
+        except Exception:
+            port = 8501
+        return f"http://localhost:{port}/oauth2callback"
+
+
+def _update_redirect_uri_in_secrets():
+    """
+    Validates that the redirect_uri in secrets matches the expected value for the environment.
+    
+    Since Streamlit's st.login() reads redirect_uri from secrets (which are immutable at runtime),
+    we can only validate and warn if there's a mismatch. The actual redirect_uri must be set
+    correctly in:
+    - Local: `.streamlit/secrets.toml` → `http://localhost:8501/oauth2callback`
+    - Cloud: Streamlit Cloud Secrets → `https://unisportai.streamlit.app/oauth2callback`
+    
+    Returns:
+        The expected redirect_uri for the current environment
+    """
+    expected_uri = _get_redirect_uri()
+    
+    # Validate that secrets have the correct redirect_uri
+    try:
+        secrets_uri = st.secrets.get("auth", {}).get("redirect_uri", "")
+        
+        # Check if secrets URI matches expected URI
+        if secrets_uri and secrets_uri != expected_uri:
+            # Show a warning in development mode (local)
+            if expected_uri.startswith("http://localhost"):
+                # Running locally - secrets should have localhost
+                if not secrets_uri.startswith("http://localhost"):
+                    st.warning(
+                        f"⚠️ Redirect URI mismatch detected!\n"
+                        f"Expected (local): `{expected_uri}`\n"
+                        f"Found in secrets: `{secrets_uri}`\n"
+                        f"Please update `.streamlit/secrets.toml` to use localhost for local development."
+                    )
+            else:
+                # Running in cloud - secrets should have cloud URL
+                if secrets_uri.startswith("http://localhost"):
+                    st.warning(
+                        f"⚠️ Redirect URI mismatch detected!\n"
+                        f"Expected (cloud): `{expected_uri}`\n"
+                        f"Found in secrets: `{secrets_uri}`\n"
+                        f"Please update Streamlit Cloud Secrets to use the cloud URL."
+                    )
+    except Exception:
+        # If we can't read secrets, that's okay - they might not be set yet
+        pass
+    
+    # Set environment variable (may be used by some OAuth implementations)
+    os.environ["STREAMLIT_AUTH_REDIRECT_URI"] = expected_uri
+    
+    return expected_uri
 
 
 def is_logged_in():
@@ -64,6 +165,12 @@ def check_auth():
 def show_login_page():
     """Zeigt die Login-Seite mit Google OAuth"""
     
+    # Validate redirect URI configuration
+    # Note: Streamlit's st.login() reads redirect_uri from secrets (immutable)
+    # For local development: secrets.toml should have http://localhost:8501/oauth2callback
+    # For production: Streamlit Cloud secrets should have https://unisportai.streamlit.app/oauth2callback
+    expected_uri = _update_redirect_uri_in_secrets()
+    
     # Beautiful header with university images
     st.markdown(
         """
@@ -120,7 +227,16 @@ def show_login_page():
     st.markdown("### 🔐 Get Started")
     st.caption("Sign in with your Google account - no password needed!")
     
+    # Set redirect URI dynamically based on environment
+    # Note: Streamlit's st.login() reads redirect_uri from secrets
+    # Since secrets are immutable, we set it in secrets.toml for local dev
+    # and in Streamlit Cloud secrets for production
+    # This function call ensures we're using the correct one
+    dynamic_redirect_uri = _update_redirect_uri_in_secrets()
+    
     # Login button with prominent styling
+    # st.login uses the redirect_uri from secrets automatically
+    # We've set the environment variable as a fallback
     login_button = st.button(
         "🔵 Sign in with Google",
         on_click=st.login, 
@@ -185,47 +301,6 @@ def check_token_expiry():
         st.error(f"Fehler beim Prüfen des Tokens: {e}")
 
 
-def render_user_menu():
-    """Rendert das Benutzermenü in der Sidebar"""
-    if is_logged_in():
-        # Add spacing to push user menu to bottom
-        st.sidebar.markdown("<br>" * 3, unsafe_allow_html=True)
-        
-        with st.sidebar:
-            # User info section with card-like design
-            st.markdown(
-                f"""
-                <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 20px;
-                    border-radius: 12px;
-                    margin-bottom: 16px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                ">
-                    <div style="color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px;">
-                        👤 Signed in as
-                    </div>
-                    <div style="color: white; font-size: 16px; font-weight: 700; margin-bottom: 4px;">
-                        {st.user.name}
-                    </div>
-                    <div style="color: rgba(255,255,255,0.8); font-size: 13px;">
-                        {st.user.email}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            
-            # Action buttons with icons
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("📝 Profile", use_container_width=True, key="profile_btn"):
-                    st.switch_page("pages/profile.py")
-            
-            with col2:
-                if st.button("🚪 Logout", use_container_width=True, key="logout_btn", type="secondary"):
-                    handle_logout()
 
 
 def get_user_info_dict():

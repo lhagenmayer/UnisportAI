@@ -3,7 +3,7 @@ from datetime import datetime
 from data.supabase_client import get_offers_with_stats, count_upcoming_events_per_offer, get_trainers_for_all_offers, get_events_for_offer, get_events_by_offer_mapping
 from data.filters import filter_offers, filter_offers_by_events, filter_events
 from data.state_manager import get_filter_state, set_filter_state, set_sports_data, set_selected_offer
-from data.shared_sidebar import render_shared_sidebar
+from data.shared_sidebar import render_filters_sidebar
 from data.auth import is_logged_in
 
 # Check authentication
@@ -36,8 +36,12 @@ if not offers:
 # Store in state
 set_sports_data(offers)
 
-# Render sidebar
-render_shared_sidebar(filter_type='main', sports_data=offers)
+# Load events for detail filters (even on overview page)
+from data.supabase_client import get_all_events
+events = get_all_events()
+
+# Render filter sidebar (includes user info at bottom)
+render_filters_sidebar(sports_data=offers, events=events)
 
 # Get all filter states
 show_upcoming_only = get_filter_state('show_upcoming_only', True)
@@ -90,15 +94,6 @@ if has_detail_filters:
         hide_cancelled=hide_cancelled
     )
 
-# Results header
-st.divider()
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.subheader(f"📋 {len(filtered_offers)} Activities Available")
-with col2:
-    # View mode toggle (could add grid/list view here)
-    pass
-
 # Display activities in a clean card layout
 if not filtered_offers:
     st.info("🔍 No activities match your filters. Try adjusting your search criteria.")
@@ -117,21 +112,22 @@ for offer in filtered_offers:
             metadata = []
             
             # Intensity badge
-            intensity = offer.get('intensity', '').capitalize()
+            intensity_value = offer.get('intensity') or ''
+            intensity = intensity_value.capitalize() if intensity_value else ''
             if intensity:
                 color = {'Low': '🟢', 'Medium': '🟡', 'High': '🔴'}.get(intensity, '⚪')
                 metadata.append(f"{color} {intensity}")
             
             # Focus areas
             if offer.get('focus'):
-                focus_list = [f.capitalize() for f in offer['focus'][:2]]
+                focus_list = [f.capitalize() if f else '' for f in offer['focus'][:2] if f]
                 if len(offer['focus']) > 2:
                     focus_list.append(f"+{len(offer['focus']) - 2}")
                 metadata.append(f"🎯 {', '.join(focus_list)}")
             
             # Setting
             if offer.get('setting'):
-                setting_str = ', '.join([s.capitalize() for s in offer['setting'][:2]])
+                setting_str = ', '.join([s.capitalize() if s else '' for s in offer['setting'][:2] if s])
                 metadata.append(f"🏠 {setting_str}")
             
             # Events count
@@ -232,8 +228,6 @@ for offer in filtered_offers:
                             st.switch_page("pages/details.py")
                 else:
                     st.info("No upcoming dates match your filters")
-        
-        st.divider()
 
 # Empty state footer
 if len(filtered_offers) == 0:

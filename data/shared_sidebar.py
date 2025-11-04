@@ -1,84 +1,83 @@
 """
-Shared Sidebar for all pages
-Clean and organized filter interface following Streamlit best practices
+Sidebar Components for UnisportAI
+- Filter sidebar for Overview and Details pages
+- User info section that appears on all pages
 """
 import streamlit as st
 from datetime import datetime, time
+from typing import Optional, List, Dict, Any
 from data.state_manager import (
     get_filter_state, set_filter_state, init_multiple_offers_state,
     get_sports_data, get_selected_offer, has_multiple_offers, get_nav_date
 )
-from data.user_management import save_sidebar_preferences
 
-def render_user_menu():
-    """Renders the user menu in the sidebar"""
-    from data.auth import is_logged_in, handle_logout
-    
-    if is_logged_in():
-        # Add spacing to push user menu to bottom
-        st.sidebar.markdown("<br>" * 3, unsafe_allow_html=True)
-        
-        with st.sidebar:
-            # User info section with card-like design
-            st.markdown(
-                f"""
-                <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 20px;
-                    border-radius: 12px;
-                    margin-bottom: 16px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                ">
-                    <div style="color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px;">
-                        👤 Signed in as
-                    </div>
-                    <div style="color: white; font-size: 16px; font-weight: 700; margin-bottom: 4px;">
-                        {st.user.name}
-                    </div>
-                    <div style="color: rgba(255,255,255,0.8); font-size: 13px;">
-                        {st.user.email}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            
-            # Action buttons with icons
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("📝 Profile", use_container_width=True, key="profile_btn"):
-                    st.switch_page("pages/profile.py")
-            
-            with col2:
-                if st.button("🚪 Logout", use_container_width=True, key="logout_btn", type="secondary"):
-                    handle_logout()
-
-def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
+def _create_user_info_card_html(user_name: str, user_email: str) -> str:
     """
-    Renders a clean, organized sidebar with collapsible filter sections.
+    Creates HTML markup for the user info card.
     
     Args:
-        filter_type: 'main' or 'detail' - determines which filters are shown
-        sports_data: Data for main page filters
-        events: Event data for detail filters
+        user_name: User's display name
+        user_email: User's email address
+        
+    Returns:
+        HTML string for the user info card
+    """
+    return f"""
+    <div style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    ">
+        <div style="color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px;">
+            👤 Signed in as
+        </div>
+        <div style="color: white; font-size: 16px; font-weight: 700; margin-bottom: 4px;">
+            {user_name}
+        </div>
+        <div style="color: rgba(255,255,255,0.8); font-size: 13px;">
+            {user_email}
+        </div>
+    </div>
+    """
+
+def render_sidebar_user_info() -> None:
+    """
+    Renders the user info section at the top of the sidebar.
+    This should be called on ALL pages to ensure consistent user info display.
+    Always renders in the sidebar, whether called standalone or within render_filters_sidebar().
+    """
+    from data.auth import is_logged_in
+    
+    if not is_logged_in():
+        return
+    
+    with st.sidebar:
+        # User info card
+        user_name = st.user.name
+        user_email = st.user.email
+        user_card_html = _create_user_info_card_html(user_name, user_email)
+        st.markdown(user_card_html, unsafe_allow_html=True)
+        
+        # Add spacing after user info
+        st.markdown("<br>", unsafe_allow_html=True)
+
+def render_filters_sidebar(sports_data=None, events=None):
+    """
+    Renders the filter sidebar for Overview and Details pages.
+    Includes user info at the top, followed by filters for activities and course dates.
+    
+    Args:
+        sports_data: Data for activity filters (intensity, focus, setting)
+        events: Event data for course filters (date, time, location, weekday)
     """
     
     with st.sidebar:
-        # Clean title with icon
-        st.markdown("""
-            <div style="
-                padding: 16px 0 12px 0;
-                border-bottom: 2px solid rgba(49, 51, 63, 0.2);
-                margin-bottom: 20px;
-            ">
-                <h2 style="margin: 0; font-size: 24px; font-weight: 700;">
-                    🔍 Filters
-                </h2>
-            </div>
-        """, unsafe_allow_html=True)
+        # Render user info at the top
+        render_sidebar_user_info()
         
-        # Quick search at the top (always visible)
+        # Quick search (always visible)
         search_text = st.text_input(
             "🔎 Quick Search",
             value=get_filter_state('search_text', ''),
@@ -94,12 +93,16 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
         if not sports_data:
             sports_data = get_sports_data()
         
-        # Load events if needed
-        if not events and filter_type == 'detail':
-            from data.supabase_client import get_all_events
-            events = get_all_events()
+        # Load events if not provided (optional, will show filters if available)
+        if not events:
+            try:
+                from data.supabase_client import get_all_events
+                events = get_all_events()
+            except Exception:
+                events = None
         
-        # === ACTIVITY FILTERS (Main Page) ===
+        # === ACTIVITY FILTERS ===
+        # Show activity filters whenever sports_data is available
         if sports_data and len(sports_data) > 0:
             with st.expander("🎯 Activity Type", expanded=True):
                 # Extract unique values
@@ -117,40 +120,46 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                 
                 # Intensity
                 if intensities:
+                    current_intensity = get_filter_state('intensity', [])
                     selected_intensity = st.multiselect(
                         "💪 Intensity",
                         options=intensities,
-                        default=get_filter_state('intensity', []),
+                        default=current_intensity,
                         key="global_intensity",
                         help="Filter by exercise intensity level"
                     )
+                    # Always sync state with widget value for immediate updates
                     set_filter_state('intensity', selected_intensity)
                 
                 # Focus
                 if focuses:
+                    current_focus = get_filter_state('focus', [])
                     selected_focus = st.multiselect(
                         "🎯 Focus",
                         options=focuses,
-                        default=get_filter_state('focus', []),
+                        default=current_focus,
                         key="global_focus",
                         help="Filter by training focus area"
                     )
+                    # Always sync state with widget value for immediate updates
                     set_filter_state('focus', selected_focus)
                 
                 # Setting
                 if settings:
+                    current_setting = get_filter_state('setting', [])
                     selected_setting = st.multiselect(
                         "🏠 Setting",
                         options=settings,
-                        default=get_filter_state('setting', []),
+                        default=current_setting,
                         key="global_setting",
                         help="Indoor or outdoor activities"
                     )
+                    # Always sync state with widget value for immediate updates
                     set_filter_state('setting', selected_setting)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # Show upcoming only
+                # Show upcoming only checkbox
                 show_upcoming_only = st.checkbox(
                     "📅 Show upcoming only",
                     value=get_filter_state('show_upcoming_only', True),
@@ -158,8 +167,8 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                 )
                 set_filter_state('show_upcoming_only', show_upcoming_only)
         
-        # === COURSE FILTERS (Detail Page) ===
-        if events and filter_type == 'detail':
+        # === COURSE FILTERS (shown when events are available) ===
+        if events and len(events) > 0:
             # Multiple Activities Selection (if applicable)
             if has_multiple_offers():
                 with st.expander("🎯 Selected Activities", expanded=True):
@@ -192,6 +201,9 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                         label_visibility="collapsed"
                     )
                     
+                    # Always sync state with widget value for immediate updates
+                    st.session_state[multiselect_key] = selected_offers
+                    
                     if selected_offers:
                         st.success(f"✓ {len(selected_offers)} selected")
             
@@ -213,12 +225,14 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                     # Only use stored offers that exist in current sport_names
                     valid_default = [sport for sport in stored_offers if sport in sport_names]
                     
+                    current_sports = get_filter_state('offers', valid_default)
                     selected_sports = st.multiselect(
                         "Sport",
                         options=sport_names,
-                        default=valid_default,
+                        default=current_sports if current_sports else valid_default,
                         key="global_sport_input"
                     )
+                    # Always sync state with widget value for immediate updates
                     set_filter_state('offers', selected_sports)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
@@ -231,7 +245,7 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                     )
                     set_filter_state('hide_cancelled', hide_cancelled)
             
-            # Date & Time filters
+            # Date & Time filters (shown on both detail and main pages when events are available)
             with st.expander("📅 Date & Time", expanded=False):
                 st.markdown("**Date Range**")
                 
@@ -289,13 +303,15 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
             with st.expander("📍 Location & Day", expanded=False):
                 # Location
                 locations = sorted(set([e.get('location_name', '') for e in events if e.get('location_name')]))
+                current_locations = get_filter_state('location', [])
                 selected_locations = st.multiselect(
                     "📍 Location",
                     options=locations,
-                    default=get_filter_state('location', []),
+                    default=current_locations,
                     key="global_location",
                     help="Filter by location/venue"
                 )
+                # Always sync state with widget value for immediate updates
                 set_filter_state('location', selected_locations)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -306,40 +322,14 @@ def render_shared_sidebar(filter_type='main', sports_data=None, events=None):
                     'Thursday': 'Donnerstag', 'Friday': 'Freitag', 'Saturday': 'Samstag', 'Sunday': 'Sonntag'
                 }
                 weekdays_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                current_weekdays = get_filter_state('weekday', [])
                 selected_weekdays = st.multiselect(
                     "📆 Weekday",
                     options=weekdays_options,
-                    default=get_filter_state('weekday', []),
+                    default=current_weekdays,
                     format_func=lambda x: weekdays_de.get(x, x),
                     key="global_weekday",
                     help="Filter by day of the week"
                 )
+                # Always sync state with widget value for immediate updates
                 set_filter_state('weekday', selected_weekdays)
-        
-        # === ACTIONS ===
-        st.markdown("<br>" * 2, unsafe_allow_html=True)
-        
-        # Action buttons with better styling
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("💾 Save", use_container_width=True, help="Save current filters as defaults", type="primary"):
-                try:
-                    intensities = get_filter_state('intensity', [])
-                    focus = get_filter_state('focus', [])
-                    settings = get_filter_state('setting', [])
-                    locations = get_filter_state('location', [])
-                    weekdays = get_filter_state('weekday', [])
-                    if save_sidebar_preferences(intensities, focus, settings, locations, weekdays):
-                        st.success("✅ Saved!")
-                    else:
-                        st.warning("⚠️ Login required")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-        
-        with col2:
-            if filter_type == 'detail':
-                if st.button("🏠 Home", use_container_width=True):
-                    st.switch_page("pages/overview.py")
-
-    render_user_menu()
-

@@ -1,6 +1,5 @@
 import streamlit as st
 from data.auth import is_logged_in, show_login_page, sync_user_to_supabase, check_token_expiry
-from data.shared_sidebar import render_user_menu
 
 # Note: Secrets validation happens in auth modules when needed
 # This prevents errors on Streamlit Cloud during deployment
@@ -22,14 +21,15 @@ try:
 except Exception as e:
     st.warning(f"Fehler bei der Benutzersynchronisation: {e}")
 
-# Zeige Benutzermenü in der Sidebar
-render_user_menu()
+# Note: User info is rendered by each page:
+# - Pages with render_filters_sidebar() (overview, details): user info included automatically
+# - Pages without render_filters_sidebar() (athletes, profile): must call render_sidebar_user_info() manually
 
 # Define the pages (only AFTER authentication)
 overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯")
 details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
-athletes_page = st.Page("pages/athletes.py", title="Sportfreunde", icon="👥")
-profile_page = st.Page("pages/profile.py", title="My Profile", icon="👤")
+athletes_page = st.Page("pages/athletes.py", title="Athletes", icon="🤝")
+profile_page = st.Page("pages/profile.py", title="My Profile", icon="⚙️")
 
 # Set up navigation
 pages = [overview_page, details_page, athletes_page, profile_page]
