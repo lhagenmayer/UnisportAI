@@ -94,6 +94,8 @@ if has_detail_filters:
         hide_cancelled=hide_cancelled
     )
 
+# Personalisierungs-Sortierung entfernt; Standardreihenfolge beibehalten
+
 # Show filtered count
 st.info(f"Showing {len(filtered_offers)} of {len(offers)} activities")
 

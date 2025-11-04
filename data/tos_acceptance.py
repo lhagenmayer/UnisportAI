@@ -144,6 +144,3 @@ def save_tos_acceptance():
     except Exception as e:
         st.error(f"Fehler beim Speichern der Zustimmung: {e}")
         return False
-
-
-

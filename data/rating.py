@@ -133,4 +133,3 @@ def get_average_rating_for_trainer(trainer_name: str) -> dict:
         return {"avg": round(avg_rating, 1), "count": len(ratings.data)}
     except Exception:
         return {"avg": 3, "count": 0}
-
