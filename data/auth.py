@@ -51,34 +51,40 @@ def show_login_page():
         unsafe_allow_html=True,
     )
     
-    # Main title
-    st.title("Willkommen bei UnisportAI")
-    st.markdown("### Entdecken Sie die Sportangebote der Universität St.Gallen")
+    # Main title with modern styling
+    st.title("🎯 Welcome to UnisportAI")
+    st.caption("Discover and manage sports activities at the University of St.Gallen")
     
-    st.markdown("---")
+    st.divider()
     
-    # Info section
-    st.markdown("""
-    #### 🎯 Was ist UnisportAI?
-    Eine intelligente Plattform zur Entdeckung und Verwaltung von Sportangeboten an der HSG.
+    # Feature highlights in columns
+    col1, col2 = st.columns(2)
     
-    **Features:**
-    - 📅 Übersicht aller Kurse und Termine
-    - ⭐ Bewertungssystem für Kurse und Trainer
-    - ❤️ Favoriten für Ihre Lieblingssportarten
-    - 📆 Kalender-Integration (iCal)
-    - 🔍 Erweiterte Such- und Filterfunktionen
+    with col1:
+        st.markdown("### 🏃 What We Offer")
+        st.markdown("""
+        - **📅 Complete Overview** - All courses and dates in one place
+        - **⭐ Rating System** - Review courses and trainers
+        - **❤️ Personal Favorites** - Save your preferred activities
+        """)
     
-    **Keine Passwörter nötig** - einfach mit Google anmelden!
-    """)
+    with col2:
+        st.markdown("### ✨ Smart Features")
+        st.markdown("""
+        - **🔍 Advanced Filters** - Find exactly what you need
+        - **📆 Calendar Integration** - Sync with your calendar
+        - **👥 Social Connection** - Connect with other athletes
+        """)
     
-    st.markdown("---")
+    st.divider()
     
-    # Login button
-    st.markdown("#### Anmeldung mit Google")
+    # Login section with clean card design
+    st.markdown("### 🔐 Get Started")
+    st.caption("Sign in with your Google account - no password needed!")
     
+    # Login button with prominent styling
     login_button = st.button(
-        "🔵 Mit Google anmelden",
+        "🔵 Sign in with Google",
         on_click=st.login, 
         args=["google"], 
         use_container_width=True, 
@@ -86,20 +92,28 @@ def show_login_page():
         key="google_login_button"
     )
     
-    st.markdown("---")
+    st.divider()
     
-    # Additional info
-    st.info("💡 Nach der Anmeldung werden Sie zur Google-Anmeldeseite weitergeleitet. Ihre Daten werden sicher verarbeitet und nur für diese Anwendung verwendet.")
+    # Security and privacy info
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.info("🔒 Your data is processed securely and used only for this application")
+    
+    with col2:
+        if st.button("📄 Privacy Policy", use_container_width=True):
+            st.info("View our privacy policy for details on data handling")
     
     # Debug information (only if needed)
     if st.secrets.get("auth", {}).get("google", {}).get("client_id") == "YOUR_GOOGLE_CLIENT_ID_HERE":
-        with st.expander("⚠️ Setup-Informationen für Entwickler", expanded=False):
-            st.markdown("### Google OAuth Setup erforderlich")
+        with st.expander("⚠️ Developer Setup Required", expanded=False):
+            st.warning("**Google OAuth Configuration Needed**")
             st.markdown("""
-            1. Erstellen Sie OAuth-Anmeldedaten in der [Google Cloud Console](https://console.cloud.google.com/)
-            2. Fügen Sie folgende Redirect URIs hinzu:
-               - Lokal: `http://localhost:8501/oauth2callback`
+            1. Create OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/)
+            2. Add these redirect URIs:
+               - Local: `http://localhost:8501/oauth2callback`
                - Production: `https://unisportai.streamlit.app/oauth2callback`
+            3. Update `.streamlit/secrets.toml` with your credentials
             """)
 
 
@@ -140,25 +154,22 @@ def render_user_menu():
         st.sidebar.divider()
         
         with st.sidebar:
-            st.markdown(f"### 👤 Benutzer")
-            st.write(f"**{st.user.name}**")
+            st.markdown("### 👤 User")
+            
+            # User info in clean format
+            st.markdown(f"**{st.user.name}**")
             st.caption(st.user.email)
             
-            # Links zu Profile und Admin
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("📝 Profil", use_container_width=True):
-                    st.switch_page("pages/profile.py")
-            with col2:
-                # Prüfe ob Admin
-                from data.user_management import is_admin
-                if is_admin():
-                    if st.button("🔧 Admin", use_container_width=True):
-                        st.switch_page("pages/admin.py")
+            st.write("")  # Spacing
+            
+            # Profile button
+            if st.button("📝 My Profile", use_container_width=True):
+                st.switch_page("pages/profile.py")
             
             st.divider()
             
-            if st.button("🚪 Abmelden", use_container_width=True):
+            # Logout button
+            if st.button("🚪 Sign Out", use_container_width=True):
                 st.logout()
                 st.rerun()
 
@@ -179,75 +190,23 @@ def get_user_info_dict():
     }
 
 
-def sync_user_to_supabase(supabase_client):
-    """
-    Synchronisiert den Benutzer mit Supabase
+def sync_user_to_supabase():
+    """Syncs the current authenticated user to Supabase"""
+    from data.supabase_client import create_or_update_user
     
-    Args:
-        supabase_client: Supabase Client Instanz
-        
-    Returns:
-        dict: Benutzerdaten aus Supabase
-    """
-    if not is_logged_in():
-        return None
-    
-    user_sub = st.user.sub
-    user_email = st.user.email
-    user_name = st.user.name
+    user_info = get_user_info_dict()
+    if not user_info:
+        return
     
     try:
-        # Prüfe ob Benutzer bereits existiert (über sub)
-        existing_user = supabase_client.table("users").select("*").eq("sub", user_sub).execute()
+        user_data = {
+            "sub": user_info.get("sub"),
+            "email": user_info.get("email"),
+            "name": user_info.get("name", user_info.get("email")),
+            "picture": user_info.get("picture"),
+            "last_login": datetime.now().isoformat()
+        }
         
-        if existing_user.data:
-            # Benutzer existiert bereits - aktualisiere die Daten falls nötig
-            user_data = existing_user.data[0]
-            
-            # Update falls sich etwas geändert hat
-            update_data = {}
-            if user_data.get('email') != user_email:
-                update_data['email'] = user_email
-            if user_data.get('name') != user_name:
-                update_data['name'] = user_name
-            if user_data.get('full_name') != user_name:  # Update deprecated full_name
-                update_data['full_name'] = user_name
-            
-            if update_data:
-                update_data['last_login'] = datetime.now().isoformat()
-                supabase_client.table("users").update(update_data).eq("sub", user_sub).execute()
-                return {**user_data, **update_data}
-            
-            # Aktualisiere last_login
-            supabase_client.table("users").update({"last_login": datetime.now().isoformat()}).eq("sub", user_sub).execute()
-            return user_data
-        
-        else:
-            # Neuer Benutzer - erstelle Eintrag
-            # Generiere UUID für die id (primary key)
-            import uuid
-            user_uuid = str(uuid.uuid4())
-            
-            new_user_data = {
-                'id': user_uuid,
-                'sub': user_sub,
-                'email': user_email,
-                'full_name': user_name,  # Maintain backward compatibility
-                'name': user_name,
-                'given_name': getattr(st.user, 'given_name', None),
-                'family_name': getattr(st.user, 'family_name', None),
-                'picture': getattr(st.user, 'picture', None),
-                'role': 'user',  # Standard-Rolle
-                'last_login': datetime.now().isoformat(),
-                'provider': 'google',
-                'preferences': '{}',  # Initialize empty JSON
-                'is_active': True
-            }
-            
-            result = supabase_client.table("users").insert(new_user_data).execute()
-            return result.data[0] if result.data else new_user_data
-            
+        create_or_update_user(user_data)
     except Exception as e:
-        st.error(f"Fehler bei der Benutzersynchronisation: {e}")
-        return None
-
+        st.warning(f"⚠️ Fehler beim Synchronisieren des Benutzers: {e}")

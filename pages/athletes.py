@@ -1,350 +1,273 @@
 import streamlit as st
-from data.user_management import get_user_profile
-from data.auth import get_user_sub, get_user_email, is_logged_in
-from data.supabase_client import get_supabase_client
-from datetime import datetime
-from typing import Optional, Dict, List
+from data.auth import is_logged_in
+from data.supabase_client import (
+    get_user_id_by_sub,
+    get_public_users,
+    get_friend_status,
+    send_friend_request,
+    accept_friend_request,
+    reject_friend_request,
+    unfollow_user,
+    get_pending_friend_requests,
+    get_user_friends,
+    get_supabase_client,
+    get_user_by_id
+)
 
-
-def get_user_id(user_sub: Optional[str] = None) -> Optional[int]:
-    """Holt die user_id aus der users Tabelle"""
+def get_user_id(user_sub=None):
+    """Gets user ID from database"""
+    from data.auth import get_user_sub as auth_get_user_sub
+    
     if not user_sub:
-        user_sub = get_user_sub()
+        user_sub = auth_get_user_sub()
         if not user_sub:
             return None
     
-    try:
-        client = get_supabase_client()
-        result = client.table("users").select("id").eq("sub", user_sub).execute()
-        return result.data[0]['id'] if result.data else None
-    except Exception as e:
-        st.error(f"Fehler beim Laden der User-ID: {e}")
-        return None
-
-
-def get_public_users() -> List[Dict]:
-    """Holt alle öffentlichen Benutzer"""
-    try:
-        client = get_supabase_client()
-        result = client.table("users").select("id, name, email, picture, bio, created_at").eq("is_public", True).execute()
-        return result.data or []
-    except Exception as e:
-        st.error(f"Fehler beim Laden der öffentlichen Profile: {e}")
-        return []
-
-
-def get_friend_status(user_id: int, other_user_id: int) -> str:
-    """Prüft den Status der Freundschaft zwischen zwei Benutzern"""
-    try:
-        client = get_supabase_client()
-        
-        # Prüfe ob bereits befreundet
-        # Two separate queries to check both directions
-        friendship1 = client.table("user_friends").select("*").eq("requester_id", user_id).eq("addressee_id", other_user_id).execute()
-        friendship2 = client.table("user_friends").select("*").eq("requester_id", other_user_id).eq("addressee_id", user_id).execute()
-        
-        if friendship1.data or friendship2.data:
-            return "friends"
-        
-        # Prüfe auf ausstehende Anfrage - der User hat Anfrage gesendet
-        request_sent = client.table("friend_requests").select("*").eq("requester_id", user_id).eq("addressee_id", other_user_id).eq("status", "pending").execute()
-        
-        if request_sent.data:
-            return "request_sent"
-        
-        # Prüfe auf Anfrage erhalten
-        request_received = client.table("friend_requests").select("*").eq("requester_id", other_user_id).eq("addressee_id", user_id).eq("status", "pending").execute()
-        
-        if request_received.data:
-            return "request_received"
-        
-        return "none"
-    except Exception as e:
-        st.error(f"Fehler beim Prüfen des Freundschaftsstatus: {e}")
-        import traceback
-        st.code(traceback.format_exc())
-        return "none"
-
-
-def send_friend_request(requester_id: int, addressee_id: int) -> bool:
-    """Sendet eine Freundschaftsanfrage"""
-    try:
-        client = get_supabase_client()
-        
-        # Prüfe ob bereits eine Anfrage existiert
-        existing = client.table("friend_requests").select("*").eq("requester_id", requester_id).eq("addressee_id", addressee_id).execute()
-        
-        if existing.data:
-            if existing.data[0]['status'] == 'pending':
-                st.warning("Anfrage ist bereits ausstehend")
-                return False
-        else:
-            # Erstelle neue Anfrage
-            client.table("friend_requests").insert({
-                "requester_id": requester_id,
-                "addressee_id": addressee_id,
-                "status": "pending",
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }).execute()
-            return True
-    except Exception as e:
-        st.error(f"Fehler beim Senden der Anfrage: {e}")
-        return False
-
-
-def accept_friend_request(request_id: str, requester_id: int, addressee_id: int) -> bool:
-    """Akzeptiert eine Freundschaftsanfrage"""
-    try:
-        client = get_supabase_client()
-        
-        # Aktualisiere die Anfrage
-        client.table("friend_requests").update({
-            "status": "accepted",
-            "updated_at": datetime.now().isoformat()
-        }).eq("id", request_id).execute()
-        
-        # Erstelle Freundschaft in beide Richtungen (bidirectional)
-        client.table("user_friends").insert([
-            {"requester_id": requester_id, "addressee_id": addressee_id, "created_at": datetime.now().isoformat()},
-            {"requester_id": addressee_id, "addressee_id": requester_id, "created_at": datetime.now().isoformat()}
-        ]).execute()
-        
-        return True
-    except Exception as e:
-        st.error(f"Fehler beim Akzeptieren der Anfrage: {e}")
-        return False
-
-
-def reject_friend_request(request_id: str) -> bool:
-    """Lehnt eine Freundschaftsanfrage ab"""
-    try:
-        client = get_supabase_client()
-        client.table("friend_requests").update({
-            "status": "rejected",
-            "updated_at": datetime.now().isoformat()
-        }).eq("id", request_id).execute()
-        return True
-    except Exception as e:
-        st.error(f"Fehler beim Ablehnen der Anfrage: {e}")
-        return False
-
-
-def unfollow_user(user_id: int, friend_id: int) -> bool:
-    """Entfernt eine Freundschaft"""
-    try:
-        client = get_supabase_client()
-        
-        # Lösche Freundschaft in beide Richtungen
-        # Use .or() to handle both directions
-        result1 = client.table("user_friends").delete().eq("requester_id", user_id).eq("addressee_id", friend_id).execute()
-        result2 = client.table("user_friends").delete().eq("requester_id", friend_id).eq("addressee_id", user_id).execute()
-        
-        return True
-    except Exception as e:
-        st.error(f"Fehler beim Entfernen der Freundschaft: {e}")
-        import traceback
-        st.code(traceback.format_exc())
-        return False
-
-
-def get_pending_requests(user_id: int) -> List[Dict]:
-    """Holt alle ausstehenden Freundschaftsanfragen"""
-    try:
-        client = get_supabase_client()
-        result = client.table("friend_requests").select("*, requester:users!requester_id(*), addressee:users!addressee_id(*)").eq(
-            "addressee_id", user_id
-        ).eq("status", "pending").execute()
-        return result.data or []
-    except Exception as e:
-        st.error(f"Fehler beim Laden der Anfragen: {e}")
-        return []
-
-
-def get_user_friends(user_id: int) -> List[Dict]:
-    """Holt alle Freunde eines Benutzers"""
-    try:
-        client = get_supabase_client()
-        
-        # Hole alle Freunde (in beide Richtungen)
-        friendships = client.table("user_friends").select("*, requester:users!requester_id(*), addressee:users!addressee_id(*)").or_(
-            f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
-        ).execute()
-        
-        friends = []
-        for friendship in friendships.data or []:
-            # Bestimme welcher der Freunde ist
-            if friendship['requester_id'] == user_id:
-                friend = friendship['addressee'] if 'addressee' in friendship else friendship.get('addressee')
-            else:
-                friend = friendship['requester'] if 'requester' in friendship else friendship.get('requester')
-            
-            if friend:
-                friends.append(friend)
-        
-        return friends
-    except Exception as e:
-        st.error(f"Fehler beim Laden der Freunde: {e}")
-        return []
-
+    return get_user_id_by_sub(user_sub)
 
 def render_athletes_page():
-    """Rendert die Athleten-Seite mit öffentlichen Profilen"""
-    from data.auth import is_logged_in
+    """Renders the Athletes page with public profiles"""
     
+    # Check authentication
     if not is_logged_in():
         st.error("❌ Bitte melden Sie sich an, um Sportfreunde zu finden.")
-        return
+        st.stop()
     
     current_user_id = get_user_id()
     if not current_user_id:
         st.error("❌ Fehler beim Laden Ihres Profiles.")
-        return
+        st.stop()
     
-    st.title("👥 Sportfreunde finden")
+    # Page header
+    st.title("👥 Athletes & Friends")
+    st.caption("Connect with other athletes and build your sports community")
     
-    # Tabs für Übersicht, Anfragen und Freunde
-    tab1, tab2, tab3 = st.tabs(["🔍 Alle Athleten", "📩 Anfragen", "👥 Meine Freunde"])
+    st.divider()
+    
+    # Tabs for different sections
+    tab1, tab2, tab3 = st.tabs(["🔍 Discover Athletes", "📩 Friend Requests", "👥 My Friends"])
     
     with tab1:
-        st.subheader("Öffentliche Profile")
+        st.subheader("Discover Public Profiles")
         
-        public_users = get_public_users()
+        with st.spinner('🔄 Loading athletes...'):
+            public_users = get_public_users()
         
         if not public_users:
-            st.info("Keine öffentlichen Profile verfügbar.")
+            st.info("📭 No public profiles available yet.")
+            st.caption("Be the first to make your profile public in Settings!")
             return
         
-        # Filter own profile
+        # Filter out own profile
         public_users = [u for u in public_users if u['id'] != current_user_id]
         
         if not public_users:
-            st.info("Noch keine anderen öffentlichen Profile verfügbar.")
+            st.info("📭 No other public profiles available yet.")
+            st.caption("Check back later as more athletes join the community!")
             return
         
+        # Display count
+        st.caption(f"**{len(public_users)}** athlete{'s' if len(public_users) != 1 else ''} found")
+        
+        # Display users in modern card layout
         for user in public_users:
             with st.container():
-                col1, col2, col3 = st.columns([1, 3, 2])
+                col_pic, col_info, col_action = st.columns([1, 4, 2])
                 
-                with col1:
+                with col_pic:
                     if user.get('picture'):
                         st.image(user['picture'], width=100)
                     else:
-                        st.image("https://via.placeholder.com/100", width=100)
+                        # Placeholder with initials
+                        name = user.get('name', 'U')
+                        initials = ''.join([word[0].upper() for word in name.split()[:2]])
+                        st.markdown(f"""
+                        <div style="width: 100px; height: 100px; border-radius: 50%; 
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    display: flex; align-items: center; justify-content: center;
+                                    color: white; font-size: 32px; font-weight: bold;">
+                            {initials}
+                        </div>
+                        """, unsafe_allow_html=True)
                 
-                with col2:
-                    st.markdown(f"### {user.get('name', 'Unbekannt')}")
+                with col_info:
+                    st.markdown(f"### {user.get('name', 'Unknown')}")
+                    
+                    # Bio preview
                     if user.get('bio'):
-                        st.caption(user['bio'][:100] + "..." if len(user.get('bio', '')) > 100 else user['bio'])
-                    st.caption(f"💪 Aktiv seit: {user.get('created_at', '')[:10] if user.get('created_at') else 'Unbekannt'}")
+                        bio = user['bio']
+                        preview = bio[:120] + "..." if len(bio) > 120 else bio
+                        st.caption(preview)
+                    
+                    # Metadata
+                    metadata = []
+                    if user.get('email'):
+                        metadata.append(f"📧 {user['email']}")
+                    if user.get('created_at'):
+                        join_date = user['created_at'][:10]
+                        metadata.append(f"📅 Joined {join_date}")
+                    
+                    if metadata:
+                        st.caption(' • '.join(metadata))
                 
-                with col3:
+                with col_action:
+                    st.write("")  # Spacing
                     status = get_friend_status(current_user_id, user['id'])
                     
                     if status == "friends":
-                        st.success("✓ Bereits befreundet")
-                        if st.button("🗑️ Entfolgen", key=f"unfollow_{user['id']}"):
+                        st.success("✓ Friends")
+                        if st.button("🗑️ Unfriend", key=f"unfollow_{user['id']}", use_container_width=True):
                             if unfollow_user(current_user_id, user['id']):
-                                st.success("Freundschaft entfernt")
+                                st.success("✅ Unfriended")
                                 st.rerun()
                     
                     elif status == "request_sent":
-                        st.info("⏳ Anfrage gesendet")
+                        st.info("⏳ Pending")
                     
                     elif status == "request_received":
-                        st.warning("📨 Anfrage erhalten")
+                        st.warning("📨 Respond")
                     
                     else:
-                        if st.button("➕ Anfrage senden", key=f"request_{user['id']}"):
+                        if st.button("➕ Add Friend", key=f"request_{user['id']}", 
+                                   use_container_width=True, type="primary"):
                             if send_friend_request(current_user_id, user['id']):
-                                st.success("Freundschaftsanfrage gesendet!")
+                                st.success("✅ Request sent!")
                                 st.rerun()
                             else:
-                                st.error("Fehler beim Senden der Anfrage")
+                                st.warning("Request already pending")
                 
                 st.divider()
     
     with tab2:
-        st.subheader("Ausstehende Freundschaftsanfragen")
+        st.subheader("Friend Requests")
         
-        requests = get_pending_requests(current_user_id)
+        with st.spinner('🔄 Loading requests...'):
+            requests = get_pending_friend_requests(current_user_id)
         
         if not requests:
-            st.info("Keine ausstehenden Anfragen.")
+            st.info("📭 No pending friend requests.")
+            st.caption("You'll see requests here when other athletes want to connect with you.")
         else:
+            st.caption(f"**{len(requests)}** pending request{'s' if len(requests) != 1 else ''}")
+            
             for req in requests:
                 with st.container():
-                    # Extract user info from requester (the person who sent the request)
+                    # Extract requester info
                     requester = req.get('requester', {})
                     if isinstance(requester, dict) and len(requester) > 0:
-                        requester_name = requester.get('name', 'Unbekannt')
+                        requester_name = requester.get('name', 'Unknown')
                         requester_picture = requester.get('picture')
+                        requester_email = requester.get('email', '')
                     else:
                         # Fallback: query user separately
                         try:
-                            client = get_supabase_client()
-                            requester_data = client.table("users").select("name, picture").eq("id", req['requester_id']).execute()
-                            requester_name = requester_data.data[0]['name'] if requester_data.data else 'Unbekannt'
-                            requester_picture = requester_data.data[0].get('picture') if requester_data.data else None
+                            requester_data = get_user_by_id(req['requester_id'])
+                            if requester_data:
+                                requester_name = requester_data.get('name', 'Unknown')
+                                requester_picture = requester_data.get('picture')
+                                requester_email = requester_data.get('email', '')
+                            else:
+                                requester_name = "Unknown"
+                                requester_picture = None
+                                requester_email = ""
                         except:
-                            requester_name = "Unbekannt"
+                            requester_name = "Unknown"
                             requester_picture = None
+                            requester_email = ""
                     
-                    col1, col2, col3 = st.columns([1, 3, 2])
+                    col_pic, col_info, col_action = st.columns([1, 4, 2])
                     
-                    with col1:
+                    with col_pic:
                         if requester_picture:
                             st.image(requester_picture, width=80)
                         else:
-                            st.image("https://via.placeholder.com/80", width=80)
+                            initials = ''.join([word[0].upper() for word in requester_name.split()[:2]])
+                            st.markdown(f"""
+                            <div style="width: 80px; height: 80px; border-radius: 50%; 
+                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        display: flex; align-items: center; justify-content: center;
+                                        color: white; font-size: 28px; font-weight: bold;">
+                                {initials}
+                            </div>
+                            """, unsafe_allow_html=True)
                     
-                    with col2:
+                    with col_info:
                         st.markdown(f"### {requester_name}")
-                        st.caption(f"Anfrage vor {req['created_at'][:10] if req.get('created_at') else 'Unbekannt'}")
+                        
+                        metadata = []
+                        if requester_email:
+                            metadata.append(f"📧 {requester_email}")
+                        if req.get('created_at'):
+                            request_date = req['created_at'][:10]
+                            metadata.append(f"📅 Requested {request_date}")
+                        
+                        if metadata:
+                            st.caption(' • '.join(metadata))
                     
-                    with col3:
-                        col_accept, col_reject = st.columns(2)
+                    with col_action:
+                        st.write("")  # Spacing
                         
-                        with col_accept:
-                            if st.button("✅ Akzeptieren", key=f"accept_{req['id']}"):
-                                if accept_friend_request(req['id'], req['requester_id'], req['addressee_id']):
-                                    st.success("Freundschaftsanfrage akzeptiert!")
-                                    st.rerun()
+                        if st.button("✅ Accept", key=f"accept_{req['id']}", 
+                                   use_container_width=True, type="primary"):
+                            if accept_friend_request(req['id'], req['requester_id'], req['addressee_id']):
+                                st.success("✅ Friend request accepted!")
+                                st.rerun()
                         
-                        with col_reject:
-                            if st.button("❌ Ablehnen", key=f"reject_{req['id']}"):
-                                if reject_friend_request(req['id']):
-                                    st.success("Anfrage abgelehnt")
-                                    st.rerun()
+                        if st.button("❌ Decline", key=f"reject_{req['id']}", 
+                                   use_container_width=True):
+                            if reject_friend_request(req['id']):
+                                st.success("Request declined")
+                                st.rerun()
                     
                     st.divider()
     
     with tab3:
-        st.subheader("Meine Freunde")
+        st.subheader("My Friends")
         
-        friends = get_user_friends(current_user_id)
+        with st.spinner('🔄 Loading friends...'):
+            friends = get_user_friends(current_user_id)
         
         if not friends:
-            st.info("Sie haben noch keine Freunde. Senden Sie Anfragen an andere Athleten!")
+            st.info("👋 No friends yet - start connecting with other athletes!")
+            st.caption("Browse the Discover Athletes tab to send friend requests.")
         else:
+            st.caption(f"**{len(friends)}** friend{'s' if len(friends) != 1 else ''}")
+            
             for friend in friends:
                 with st.container():
-                    col1, col2 = st.columns([1, 4])
+                    col_pic, col_info = st.columns([1, 5])
                     
-                    with col1:
+                    with col_pic:
                         if friend.get('picture'):
                             st.image(friend['picture'], width=80)
                         else:
-                            st.image("https://via.placeholder.com/80", width=80)
+                            name = friend.get('name', 'U')
+                            initials = ''.join([word[0].upper() for word in name.split()[:2]])
+                            st.markdown(f"""
+                            <div style="width: 80px; height: 80px; border-radius: 50%; 
+                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        display: flex; align-items: center; justify-content: center;
+                                        color: white; font-size: 28px; font-weight: bold;">
+                                {initials}
+                            </div>
+                            """, unsafe_allow_html=True)
                     
-                    with col2:
-                        st.markdown(f"### {friend.get('name', 'Unbekannt')}")
-                        st.markdown(f"📧 {friend.get('email', 'N/A')}")
+                    with col_info:
+                        st.markdown(f"### {friend.get('name', 'Unknown')}")
+                        
+                        metadata = []
+                        if friend.get('email'):
+                            metadata.append(f"📧 {friend['email']}")
+                        if friend.get('bio'):
+                            bio_preview = friend['bio'][:80] + "..." if len(friend['bio']) > 80 else friend['bio']
+                            metadata.append(bio_preview)
+                        
+                        if metadata:
+                            st.caption(' • '.join(metadata))
                     
                     st.divider()
 
-
-# Hauptfunktion
+# Main execution
 if __name__ == "__main__" or not st.session_state.get('_is_main'):
     render_athletes_page()
 

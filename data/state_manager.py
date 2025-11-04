@@ -1,5 +1,6 @@
 import streamlit as st
-from typing import Any, List
+from typing import Any, List, Optional, Dict
+import time
 
 
 def _map_weekdays_db_to_ui(weekday_codes: List[str]) -> List[str]:
@@ -66,12 +67,17 @@ def _ensure_preferences_loaded():
                     favorite_names = [href_to_name[h] for h in favorite_hrefs if h in href_to_name]
                     if favorite_names:
                         st.session_state['offers'] = favorite_names
-            except Exception:
-                pass
+            except Exception as e:
+                # Log but don't fail - favorites are optional
+                import logging
+                logging.warning(f"Failed to load favorite offers: {e}")
 
         st.session_state["_prefs_loaded"] = True
-    except Exception:
-        # Fail silent; UI will use its own defaults
+        
+    except Exception as e:
+        # Log error but mark as loaded to prevent repeated attempts
+        import logging
+        logging.error(f"Error loading user preferences: {e}")
         st.session_state["_prefs_loaded"] = True
 
 
@@ -90,5 +96,165 @@ def init_multiple_offers_state(default_hrefs: List[str], state_key: str):
     """Initializes state for multiple offers selection, if missing."""
     if state_key not in st.session_state:
         st.session_state[state_key] = list(default_hrefs or [])
+
+
+# === Navigation State Management ===
+
+def get_selected_offer() -> Optional[Dict]:
+    """Gets the currently selected offer from state."""
+    return st.session_state.get('state_selected_offer')
+
+
+def set_selected_offer(offer: Dict):
+    """Sets the currently selected offer in state."""
+    st.session_state['state_selected_offer'] = offer
+
+
+def clear_selected_offer():
+    """Clears the currently selected offer from state."""
+    if 'state_selected_offer' in st.session_state:
+        del st.session_state['state_selected_offer']
+
+
+def has_selected_offer() -> bool:
+    """Checks if an offer is currently selected."""
+    return 'state_selected_offer' in st.session_state
+
+
+def get_nav_offer_hrefs() -> Optional[List[str]]:
+    """Gets navigation offer hrefs from state."""
+    return st.session_state.get('state_nav_offer_hrefs')
+
+
+def set_nav_offer_hrefs(hrefs: List[str]):
+    """Sets navigation offer hrefs in state."""
+    st.session_state['state_nav_offer_hrefs'] = hrefs
+
+
+def clear_nav_offer_hrefs():
+    """Clears navigation offer hrefs from state."""
+    if 'state_nav_offer_hrefs' in st.session_state:
+        del st.session_state['state_nav_offer_hrefs']
+
+
+def get_nav_offer_name() -> Optional[str]:
+    """Gets navigation offer name from state."""
+    return st.session_state.get('state_nav_offer_name')
+
+
+def clear_nav_offer_name():
+    """Clears navigation offer name from state."""
+    if 'state_nav_offer_name' in st.session_state:
+        del st.session_state['state_nav_offer_name']
+
+
+def get_multiple_offers() -> Optional[List[str]]:
+    """Gets multiple offers from state."""
+    return st.session_state.get('state_page2_multiple_offers')
+
+
+def set_multiple_offers(offers: List[str]):
+    """Sets multiple offers in state."""
+    st.session_state['state_page2_multiple_offers'] = offers
+
+
+def has_multiple_offers() -> bool:
+    """Checks if multiple offers are set in state."""
+    return 'state_page2_multiple_offers' in st.session_state
+
+
+def clear_multiple_offers():
+    """Clears multiple offers from state."""
+    if 'state_page2_multiple_offers' in st.session_state:
+        del st.session_state['state_page2_multiple_offers']
+
+
+def get_selected_offers_multiselect() -> Optional[List[str]]:
+    """Gets selected offers from multiselect state."""
+    return st.session_state.get('state_selected_offers_multiselect')
+
+
+def clear_selected_offers_multiselect():
+    """Clears selected offers multiselect from state."""
+    if 'state_selected_offers_multiselect' in st.session_state:
+        del st.session_state['state_selected_offers_multiselect']
+
+
+def get_selected_offers_for_page2() -> List[str]:
+    """Gets selected offers for page 2 (details page)."""
+    # Try multiselect state first
+    selected = get_selected_offers_multiselect()
+    if selected:
+        return selected
+    
+    # Fallback to multiple offers state
+    multiple = get_multiple_offers()
+    if multiple:
+        return multiple
+    
+    return []
+
+
+def get_sports_data() -> Optional[List[Dict]]:
+    """Gets sports data from state."""
+    return st.session_state.get('state_sports_data')
+
+
+def set_sports_data(data: List[Dict]):
+    """Sets sports data in state."""
+    st.session_state['state_sports_data'] = data
+
+
+def get_nav_date() -> Optional[str]:
+    """Gets navigation date from state."""
+    return st.session_state.get('state_nav_date')
+
+
+def set_nav_date(date: str):
+    """Sets navigation date in state."""
+    st.session_state['state_nav_date'] = date
+
+
+def clear_nav_date():
+    """Clears navigation date from state."""
+    if 'state_nav_date' in st.session_state:
+        del st.session_state['state_nav_date']
+
+
+# === User Activity State Management ===
+
+def get_user_activities() -> List[Dict]:
+    """Gets user activities from state."""
+    if "user_activities" not in st.session_state:
+        st.session_state.user_activities = []
+    return st.session_state.user_activities
+
+
+def add_user_activity(activity: Dict):
+    """Adds a user activity to state."""
+    if "user_activities" not in st.session_state:
+        st.session_state.user_activities = []
+    st.session_state.user_activities.append(activity)
+
+
+def clear_user_activities():
+    """Clears user activities from state."""
+    st.session_state.user_activities = []
+
+
+def get_user_id() -> Optional[int]:
+    """Gets user ID from state."""
+    return st.session_state.get("user_id")
+
+
+def set_user_id(user_id: int):
+    """Sets user ID in state."""
+    st.session_state["user_id"] = user_id
+
+
+def clear_user_id():
+    """Clears user ID from state."""
+    if "user_id" in st.session_state:
+        del st.session_state["user_id"]
 
 
