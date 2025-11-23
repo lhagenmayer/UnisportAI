@@ -393,7 +393,6 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         current_filter_results: Sports already shown by logic-based filters (to exclude)
     """
     from data.ml_integration import get_ml_recommendations
-    from data.visualizations import render_sport_radar_chart, render_user_preferences_radar
     
     # Get current filter state
     selected_focus = get_filter_state('focus', [])
@@ -451,14 +450,14 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
     if ml_recommendations:
         st.success(f"✨ Found {len(ml_recommendations)} AI recommendations for you!")
         
-        # Display each recommendation with radar chart
+        # Display each recommendation
         for i, rec in enumerate(ml_recommendations, 1):
             with st.container():
-                # Main recommendation header
                 col1, col2 = st.columns([4, 1])
                 
                 with col1:
-                    st.markdown(f"### {i}. {rec['sport']}")
+                    st.markdown(f"**{i}. {rec['sport']}**")
+                    # You can add more details from rec['item'] here if needed
                 
                 with col2:
                     # Show match score with color coding
@@ -470,22 +469,6 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                     else:
                         st.markdown(f"🟠 **{score}%**")
                 
-                # Expandable radar chart section
-                with st.expander(f"📊 View ML Feature Breakdown for {rec['sport']}", expanded=False):
-                    st.markdown("**This radar chart shows the 13 ML features that power our recommendations:**")
-                    render_sport_radar_chart(rec['sport'], allow_comparison=True)
-                
                 st.divider()
     else:
         st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")
-    
-    # Show user's preference radar chart
-    if has_filters:
-        st.markdown("---")
-        with st.expander("🎯 Your Preference Profile", expanded=False):
-            st.markdown("**See how your filter selections translate into ML features:**")
-            render_user_preferences_radar(
-                selected_focus=selected_focus,
-                selected_intensity=selected_intensity,
-                selected_setting=selected_setting
-            )
