@@ -10,10 +10,24 @@ logger = logging.getLogger(__name__)
 def load_ml_model():
     """Load the trained ML model (cached)"""
     try:
-        model_path = Path(__file__).parent.parent / "machine" / "ml_model.joblib"
-        model = joblib.load(model_path)
-        logger.info("ML model loaded successfully")
-        return model
+        # Try multiple paths for compatibility
+        possible_paths = [
+            Path(__file__).parent.parent / "machine" / "ml_model.joblib",
+            Path("machine/ml_model.joblib"),
+            Path("./machine/ml_model.joblib"),
+            Path(__file__).resolve().parent.parent / "machine" / "ml_model.joblib"
+        ]
+        
+        model = None
+        for model_path in possible_paths:
+            if model_path.exists():
+                model = joblib.load(model_path)
+                logger.info(f"ML model loaded successfully from {model_path}")
+                return model
+        
+        # If no path worked, raise error
+        raise FileNotFoundError(f"Could not find ml_model.joblib in any of: {[str(p) for p in possible_paths]}")
+        
     except Exception as e:
         logger.error(f"Error loading ML model: {e}")
         st.error(f"Failed to load ML model: {e}")
