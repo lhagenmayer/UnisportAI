@@ -386,3 +386,93 @@ def render_ml_recommendations(sports_data=None):
                         st.divider()
                 else:
                     st.info("Set some filters above to get personalized recommendations!")
+
+def render_ml_recommendations_section(sports_data=None, current_filter_results=None):
+    """
+    Render ML-based recommendations section with user-configurable threshold
+    
+    Args:
+        sports_data: All available sports
+        current_filter_results: Sports already shown by logic-based filters (to exclude)
+    """
+    from data.ml_integration import get_ml_recommendations
+    
+    # Get current filter state
+    filter_state = get_filter_state()
+    selected_focus = filter_state.get('focus', [])
+    selected_intensity = filter_state.get('intensity', [])
+    selected_setting = filter_state.get('setting', [])
+    
+    # Check if user has selected any filters
+    has_filters = bool(selected_focus or selected_intensity or selected_setting)
+    
+    if not has_filters:
+        st.info("💡 Select some filters above to get AI-powered recommendations!")
+        return
+    
+    # User controls for ML recommendations
+    with st.expander("🤖 AI Recommendations Settings", expanded=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            min_match = st.slider(
+                "Minimum Match %",
+                min_value=50,
+                max_value=100,
+                value=75,
+                step=5,
+                help="Only show sports with at least this match percentage"
+            )
+        
+        with col2:
+            max_results = st.slider(
+                "Max Results",
+                min_value=3,
+                max_value=20,
+                value=10,
+                step=1,
+                help="Maximum number of AI recommendations"
+            )
+    
+    # Get sports to exclude (already shown in main results)
+    exclude_names = []
+    if current_filter_results:
+        exclude_names = [sport.get('name', '') for sport in current_filter_results]
+    
+    # Get ML recommendations
+    with st.spinner("🤖 AI is analyzing sports..."):
+        ml_recommendations = get_ml_recommendations(
+            selected_focus=selected_focus,
+            selected_intensity=selected_intensity,
+            selected_setting=selected_setting,
+            min_match_score=min_match,
+            max_results=max_results,
+            exclude_sports=exclude_names
+        )
+    
+    # Display results
+    if ml_recommendations:
+        st.success(f"✨ Found {len(ml_recommendations)} AI recommendations for you!")
+        
+        # Display each recommendation
+        for i, rec in enumerate(ml_recommendations, 1):
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+                
+                with col1:
+                    st.markdown(f"**{i}. {rec['sport']}**")
+                    # You can add more details from rec['item'] here if needed
+                
+                with col2:
+                    # Show match score with color coding
+                    score = rec['match_score']
+                    if score >= 90:
+                        st.markdown(f"🟢 **{score}%**")
+                    elif score >= 75:
+                        st.markdown(f"🟡 **{score}%**")
+                    else:
+                        st.markdown(f"🟠 **{score}%**")
+                
+                st.divider()
+    else:
+        st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")
