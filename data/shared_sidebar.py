@@ -54,9 +54,14 @@ def render_sidebar_user_info() -> None:
         return
     
     with st.sidebar:
-        # User info card
-        user_name = st.user.name
-        user_email = st.user.email
+        # User info card - safely access user info
+        try:
+            user_name = st.user.name if hasattr(st, 'user') and st.user else "User"
+            user_email = st.user.email if hasattr(st, 'user') and st.user else ""
+        except Exception:
+            user_name = "User"
+            user_email = ""
+        
         user_card_html = _create_user_info_card_html(user_name, user_email)
         st.markdown(user_card_html, unsafe_allow_html=True)
         
