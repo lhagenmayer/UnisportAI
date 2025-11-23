@@ -15,15 +15,26 @@ from data.supabase_client import (
 )
 
 def get_user_id(user_sub=None):
-    """Gets user ID from database"""
-    from data.auth import get_user_sub as auth_get_user_sub
+    """Gets user ID from database, creates user if needed"""
+    from data.auth import get_user_sub as auth_get_user_sub, sync_user_to_supabase
     
     if not user_sub:
         user_sub = auth_get_user_sub()
         if not user_sub:
             return None
     
-    return get_user_id_by_sub(user_sub)
+    # Try to get existing user
+    user_id = get_user_id_by_sub(user_sub)
+    
+    # If user doesn't exist, sync them first
+    if not user_id:
+        try:
+            sync_user_to_supabase()
+            user_id = get_user_id_by_sub(user_sub)
+        except:
+            pass
+    
+    return user_id
 
 def render_athletes_page():
     """Renders the Athletes page with public profiles"""
@@ -40,7 +51,8 @@ def render_athletes_page():
     try:
         current_user_id = get_user_id()
         if not current_user_id:
-            st.error("❌ Fehler beim Laden Ihres Profiles. Bitte melden Sie sich erneut an.")
+            st.error("❌ Fehler beim Laden Ihres Profiles. Ihr Benutzer wurde nicht in der Datenbank gefunden.")
+            st.info("💡 Versuchen Sie, sich abzumelden und erneut anzumelden.")
             st.stop()
     except Exception as e:
         st.error(f"❌ Fehler beim Laden Ihres Profiles: {str(e)}")
