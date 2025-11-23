@@ -398,10 +398,9 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
     from data.ml_integration import get_ml_recommendations
     
     # Get current filter state
-    filter_state = get_filter_state()
-    selected_focus = filter_state.get('focus', [])
-    selected_intensity = filter_state.get('intensity', [])
-    selected_setting = filter_state.get('setting', [])
+    selected_focus = get_filter_state('focus', [])
+    selected_intensity = get_filter_state('intensity', [])
+    selected_setting = get_filter_state('setting', [])
     
     # Check if user has selected any filters
     has_filters = bool(selected_focus or selected_intensity or selected_setting)
