@@ -3,7 +3,7 @@ from datetime import datetime
 from data.supabase_client import get_offers_with_stats, count_upcoming_events_per_offer, get_trainers_for_all_offers, get_events_for_offer, get_events_by_offer_mapping
 from data.filters import filter_offers, filter_offers_by_events, filter_events
 from data.state_manager import get_filter_state, set_filter_state, set_sports_data, set_selected_offer, get_sports_data
-from data.shared_sidebar import render_filters_sidebar
+from data.shared_sidebar import render_filters_sidebar, render_ml_recommendations_section
 from data.auth import is_logged_in
 
 # Check authentication
@@ -200,6 +200,14 @@ if offers:
                         st.info("No upcoming dates match your filters")
 else:
     st.info("No activities match your selected filters.")
+
+# ML-based recommendations section
+st.markdown("---")
+st.subheader("✨ You Might Also Like")
+render_ml_recommendations_section(
+    sports_data=offers_data,
+    current_filter_results=offers  # Exclude already shown sports
+)
 
 # Empty state footer
 if len(offers) == 0:
