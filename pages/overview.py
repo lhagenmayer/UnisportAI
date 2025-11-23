@@ -3,7 +3,7 @@ from datetime import datetime
 from data.supabase_client import get_offers_with_stats, count_upcoming_events_per_offer, get_trainers_for_all_offers, get_events_for_offer, get_events_by_offer_mapping
 from data.filters import filter_offers, filter_offers_by_events, filter_events
 from data.state_manager import get_filter_state, set_filter_state, set_sports_data, set_selected_offer
-from data.shared_sidebar import render_filters_sidebar
+from data.shared_sidebar import render_filters_sidebar, render_ml_recommendations
 from data.auth import is_logged_in
 
 # Check authentication
@@ -42,6 +42,9 @@ events = get_all_events()
 
 # Render filter sidebar (includes user info at bottom)
 render_filters_sidebar(sports_data=offers, events=events)
+
+# Render ML recommendations (if button was clicked)
+render_ml_recommendations(sports_data=offers)
 
 # Get all filter states
 show_upcoming_only = get_filter_state('show_upcoming_only', True)

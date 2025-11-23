@@ -89,6 +89,15 @@ def render_filters_sidebar(sports_data=None, events=None):
         
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # === AI RECOMMENDATIONS BUTTON ===
+        st.markdown("---")
+        if st.button("🤖 Get AI Recommendations", type="primary", use_container_width=True, key="ml_button"):
+            # Trigger ML recommendations
+            set_filter_state('trigger_ml', True)
+        else:
+            set_filter_state('trigger_ml', False)
+        st.markdown("---")
+        
         # Load sports data if needed
         if not sports_data:
             sports_data = get_sports_data()
@@ -333,3 +342,42 @@ def render_filters_sidebar(sports_data=None, events=None):
                 )
                 # Always sync state with widget value for immediate updates
                 set_filter_state('weekday', selected_weekdays)
+
+def render_ml_recommendations(sports_data=None):
+    """
+    Renders ML recommendations section when the ML button is clicked.
+    Should be called on pages that use the filter sidebar (Overview, Details).
+    
+    Args:
+        sports_data: Sports data to match recommendations with available courses
+    """
+    from data.ml_integration import get_recommendations_from_sidebar
+    
+    # Check if ML button was clicked
+    if get_filter_state('trigger_ml', False):
+        with st.expander("🤖 AI Recommendations", expanded=True):
+            with st.spinner("Analyzing your preferences..."):
+                recommendations = get_recommendations_from_sidebar()
+                
+                if recommendations:
+                    st.success(f"✨ Found {len(recommendations)} personalized recommendations based on your filters!")
+                    
+                    # Show top 5 recommendations
+                    for i, rec in enumerate(recommendations[:5], 1):
+                        col1, col2 = st.columns([4, 1])
+                        
+                        with col1:
+                            st.markdown(f"**{i}. {rec['sport']}**")
+                        
+                        with col2:
+                            st.metric("Match", f"{rec['confidence']:.0f}%")
+                        
+                        # Find matching offer
+                        if sports_data:
+                            matching_offer = next((o for o in sports_data if o.get('name') == rec['sport']), None)
+                            if matching_offer:
+                                st.caption(f"⭐ {matching_offer.get('rating', 'N/A')} • {matching_offer.get('future_events_count', 0)} upcoming courses")
+                        
+                        st.divider()
+                else:
+                    st.info("Set some filters above to get personalized recommendations!")

@@ -15,7 +15,7 @@ from data.state_manager import (
     clear_selected_offers_multiselect, has_selected_offer, get_selected_offer,
     set_selected_offer, set_multiple_offers, has_multiple_offers
 )
-from data.shared_sidebar import render_filters_sidebar
+from data.shared_sidebar import render_filters_sidebar, render_ml_recommendations
 from data.rating import render_sportangebot_rating_widget, render_trainer_rating_widget, get_average_rating_for_offer, get_average_rating_for_trainer
 from data.auth import is_logged_in, get_user_sub
 
@@ -151,6 +151,9 @@ except Exception:
 
 # Render filter sidebar (includes user info at bottom)
 render_filters_sidebar(sports_data=sports_data, events=events)
+
+# Render ML recommendations (if button was clicked)
+render_ml_recommendations(sports_data=sports_data)
 
 # Get filter states
 selected_sports = get_filter_state('offers', [])
