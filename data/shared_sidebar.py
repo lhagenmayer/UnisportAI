@@ -93,14 +93,6 @@ def render_filters_sidebar(sports_data=None, events=None):
         set_filter_state('search_text', search_text)
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # === AI RECOMMENDATIONS BUTTON ===
-        st.markdown("---")
-        if st.button("🤖 Get AI Recommendations", type="primary", use_container_width=True, key="ml_button"):
-            # Trigger ML recommendations
-            set_filter_state('trigger_ml', True)
-        else:
-            set_filter_state('trigger_ml', False)
         st.markdown("---")
         
         # Load sports data if needed
