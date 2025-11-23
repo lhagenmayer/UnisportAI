@@ -33,14 +33,18 @@ def render_athletes_page():
         st.error("❌ Bitte melden Sie sich an, um Athletes zu finden.")
         st.stop()
     
-    current_user_id = get_user_id()
-    if not current_user_id:
-        st.error("❌ Fehler beim Laden Ihres Profiles.")
-        st.stop()
-    
     # Render user info in sidebar (always visible on all pages)
     from data.shared_sidebar import render_sidebar_user_info
     render_sidebar_user_info()
+    
+    try:
+        current_user_id = get_user_id()
+        if not current_user_id:
+            st.error("❌ Fehler beim Laden Ihres Profiles. Bitte melden Sie sich erneut an.")
+            st.stop()
+    except Exception as e:
+        st.error(f"❌ Fehler beim Laden Ihres Profiles: {str(e)}")
+        st.stop()
     
     # Page header
     st.title("👥 Athletes & Friends")
