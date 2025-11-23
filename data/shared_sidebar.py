@@ -65,6 +65,11 @@ def render_sidebar_user_info() -> None:
         user_card_html = _create_user_info_card_html(user_name, user_email)
         st.markdown(user_card_html, unsafe_allow_html=True)
         
+        # Logout button
+        if st.button("🚪 Logout", key="sidebar_logout", use_container_width=True, type="secondary"):
+            from data.auth import handle_logout
+            handle_logout()
+        
         # Add spacing after user info
         st.markdown("<br>", unsafe_allow_html=True)
 
