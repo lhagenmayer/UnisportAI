@@ -237,14 +237,17 @@ def show_login_page():
     # Login button with prominent styling
     # st.login uses the redirect_uri from secrets automatically
     # We've set the environment variable as a fallback
-    login_button = st.button(
+    if st.button(
         "🔵 Sign in with Google",
-        on_click=st.login, 
-        args=["google"], 
         use_container_width=True, 
         type="primary",
         key="google_login_button"
-    )
+    ):
+        try:
+            st.login("google")
+        except Exception as e:
+            st.error(f"Login failed: {e}")
+            st.info("Please try again or contact support if the problem persists.")
     
     st.divider()
     
