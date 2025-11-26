@@ -1,7 +1,31 @@
+"""Utilities for filtering offers and events.
+
+This module provides helper functions used by the Streamlit UI to filter
+offers and event lists according to sidebar-controlled criteria such as
+date ranges, weekdays, time windows, locations and cancellation status.
+"""
+
+
 def _check_event_matches_filters(event, sport_filter, weekday_filter, 
                                    date_start, date_end, time_start, time_end,
                                    location_filter, hide_cancelled):
-    """Checks if an event matches the filter criteria"""
+    """Return whether a single event matches the provided filters.
+
+    Args:
+        event (dict): Event record with keys like ``start_time``,
+            ``sport_name``, ``location_name`` and ``canceled``.
+        sport_filter (list|None): List of sport names to include.
+        weekday_filter (list|None): List of weekday names (e.g. "Monday").
+        date_start (date|None): Inclusive start date filter.
+        date_end (date|None): Inclusive end date filter.
+        time_start (time|None): Earliest allowed event time.
+        time_end (time|None): Latest allowed event time.
+        location_filter (list|None): List of allowed location names.
+        hide_cancelled (bool): Whether to exclude canceled events.
+
+    Returns:
+        bool: True when the event satisfies all filters, False otherwise.
+    """
     from datetime import datetime
     
     # Check sport filter
@@ -49,7 +73,19 @@ def _check_event_matches_filters(event, sport_filter, weekday_filter,
 
 
 def filter_offers(offers, show_upcoming_only=True, search_text="", intensity=None, focus=None, setting=None):
-    """Filters offers based on criteria"""
+    """Filter a list of offers according to UI criteria.
+
+    Args:
+        offers (list): List of offer dictionaries as returned from the DB.
+        show_upcoming_only (bool): When True, exclude offers with no upcoming events.
+        search_text (str): Case-insensitive substring match against offer name.
+        intensity (list|None): Allowed intensity values.
+        focus (list|None): Allowed focus values.
+        setting (list|None): Allowed setting values.
+
+    Returns:
+        list: Filtered list of offers.
+    """
     filtered = offers
     
     if show_upcoming_only:
@@ -74,7 +110,10 @@ def filter_offers(offers, show_upcoming_only=True, search_text="", intensity=Non
 def filter_events(events, sport_filter=None, weekday_filter=None, 
                    date_start=None, date_end=None, time_start=None, time_end=None,
                    location_filter=None, hide_cancelled=True):
-    """Filters events based on criteria"""
+    """Filter a list of events using the shared event predicate.
+
+    Returns a list containing only events that match the provided filters.
+    """
     filtered = []
     for event in events:
         if _check_event_matches_filters(event, sport_filter, weekday_filter, 
@@ -87,7 +126,15 @@ def filter_events(events, sport_filter=None, weekday_filter=None,
 def filter_offers_by_events(offers, events_mapping, sport_filter=None, weekday_filter=None, 
                                 date_start=None, date_end=None, time_start=None, time_end=None,
                                 location_filter=None, hide_cancelled=True):
-    """Filters offers based on their events"""
+    """Return offers that have at least one event matching the filters.
+
+    Args:
+        offers (list): Offer dictionaries.
+        events_mapping (dict): Mapping from ``offer['href']`` to list of events.
+
+    Returns:
+        list: Offers that have at least one matching event.
+    """
     filtered = []
     for offer in offers:
         offer_href = offer.get('href')

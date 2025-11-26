@@ -1,3 +1,15 @@
+"""Synthetic data generator for course occupancy (archival).
+
+This helper script creates synthetic training examples intended for
+testing and experiments. It queries the project's Supabase instance
+for existing course numbers and location ids and then generates a
+CSV file named ``training_data.csv`` containing occupancy and
+temporal features.
+
+This script is part of the ``archiv/`` folder and is used for
+prototyping; it should not be used in production without review.
+"""
+
 from supabase import create_client, Client
 import pandas as pd
 import numpy as np
@@ -22,39 +34,39 @@ def generate_training_data(n_samples=1000):
     
     for _ in range(n_samples):
         datum = datetime.now() + timedelta(days=random.randint(-365, 180))
-        wochentag = datum.weekday() + 1  # 1=Montag, 7=Sonntag
+        wochentag = datum.weekday() + 1  # 1=Monday, 7=Sunday
         monat = datum.month
         uhrzeit = random.randint(6, 22)
         temperatur = random.randint(15, 35) if monat in [5, 6, 7, 8, 9] else random.randint(-5, 20)
         
-        # Basis-Auslastung
+        # Base load
         auslastung = random.uniform(0.5, 0.9)
         
-        # Sommer-Effekt (Juni-September): Indoor-Kurse weniger besucht
+        # Summer effect (June–September): indoor courses are less attended
         if monat in [6, 7, 8, 9]:
             auslastung *= 0.6
         
-        # Winter-Effekt (November-Februar): mehr Besucher
+        # Winter effect (November–February): more visitors
         if monat in [11, 12, 1, 2]:
             auslastung *= 1.3
         
-        # Mittwoch: weniger los (Ausgang)
+        # Wednesday: less going on (going out)
         if wochentag == 3:
             auslastung *= 0.7
         
-        # Donnerstag morgen (6-11 Uhr): sehr leer
+        # Thursday morning (6–11 a.m.): very empty
         if wochentag == 4 and uhrzeit < 12:
             auslastung *= 0.5
         
-        # Freitag generell leer
+        # Friday generally empty
         if wochentag == 5:
             auslastung *= 0.6
         
-        # Heisse Tage: Gym weniger ausgelastet
+        # Hot days: gym less busy
         if temperatur > 28:
             auslastung *= 0.7
 
-        # Tageszeit-Effekt: (Abendkurse beliebter)
+        # Time-of-day effect: evening classes are more popular
         if 8 < uhrzeit < 12:
             auslastung *= 0.3
         elif 12 <= uhrzeit < 13:
@@ -62,7 +74,7 @@ def generate_training_data(n_samples=1000):
         elif uhrzeit >= 18:
             auslastung *= 1.3
 
-        # Auf 0-1 begrenzen
+        # Limit to 0–1
         auslastung = min(1.0, max(0.1, auslastung))
         teilnehmer = int(auslastung * random.randint(25, 35))
         

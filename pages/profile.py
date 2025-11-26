@@ -1,3 +1,11 @@
+"""pages.profile
+
+Streamlit page for viewing and editing the current user's profile.
+Provides sections for user information, preferences (favorites and UI
+settings), and profile visibility controls. This module communicates with
+``data.user_management`` and ``data.supabase_client`` to persist changes.
+"""
+
 import streamlit as st
 import json
 from datetime import datetime
@@ -18,7 +26,7 @@ from data.supabase_client import (
 from data.state_manager import get_user_activities
 from data.auth import is_logged_in, get_user_sub, handle_logout
 
-# Check authentication
+# Check authentication: bail out early for unauthenticated users
 if not is_logged_in():
     st.error("❌ Bitte melden Sie sich an.")
     st.stop()
@@ -174,6 +182,9 @@ with tab2:
     # Load current preferences
     preferences_raw = profile.get('preferences', {}) or {}
     
+    # Preferences may be stored as JSON string or as dict/object. Normalize
+    # to a Python dictionary. If parsing fails we fall back to an empty
+    # dict to avoid crashing the settings UI.
     if isinstance(preferences_raw, str):
         try:
             preferences = json.loads(preferences_raw)
@@ -204,7 +215,8 @@ with tab2:
     # Save button
     if st.button("💾 Save Preferences", type="primary", use_container_width=True):
         try:
-            # Save favorites
+            # Map selected names back to hrefs (DB identifiers) before
+            # persisting favorites.
             favorite_hrefs = [
                 sportarten_dict[sport] 
                 for sport in favorite_sports 
@@ -212,7 +224,7 @@ with tab2:
             ]
             
             if update_user_favorites(favorite_hrefs):
-                # Save other preferences
+                # Persist other preferences as a simple dict
                 new_preferences = {
                     'notifications': notifications,
                     'theme': theme
@@ -223,6 +235,7 @@ with tab2:
             else:
                 st.error("❌ Error saving favorites")
         except Exception as e:
+            # Surface a readable error to the user but avoid crashing.
             st.error(f"❌ Error: {e}")
 
 # === TAB 3: VISIBILITY ===

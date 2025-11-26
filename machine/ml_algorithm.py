@@ -1,3 +1,22 @@
+"""ml_algorithm
+-----------------
+Training script for a RandomForest-based sport classifier.
+
+This script fetches preprocessed training rows from the Supabase
+view ``ml_training_data``, trains a scikit-learn pipeline (imputer +
+scaler + RandomForest) and persists the resulting pipeline to
+``ml_model.joblib``. The script is intended to be run as a one-off
+training job or from CI when the training dataset changes.
+
+Notes:
+- The dataset is expected to already contain the numeric feature
+    columns used for model training and a target column named
+    ``Angebot`` (sport name).
+- Because many sports may have only a single example, the script
+    uses a simple pipeline without cross-validation by default; the
+    printed messages explain this limitation.
+"""
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split

@@ -1,85 +1,75 @@
-"""
-Dieses Python-Skript sammelt das Sportprogramm (Angebote, Kurse, Termine) und speichert
-es in Supabase.
+"""Scrape Unisport offers, courses and course dates into Supabase.
 
-Was wird gespeichert? Drei Ebenen:
-- Angebote (z. B. "Boxen", "TRX" …) → Tabelle: sportangebote
-- Kurse pro Angebot (mit Kursnummer, Tag, Zeit, Ort, …) → Tabelle: sportkurse
-- Termine pro Kurs (einzelne Tage/Zeiten) → Tabelle: kurs_termine
+This script extracts structured data from the public Unisport website and
+persists it into Supabase across three conceptual tables:
 
-Warum so? Webseiten sind für Menschen gemacht. Wir "lesen" HTML, extrahieren Infos
-und speichern sie strukturiert in der Datenbank, damit Apps oder Analysen damit arbeiten können.
+- ``sportangebote``: offers (e.g. "Boxen", "TRX")
+- ``sportkurse``: courses for an offer (with ``kursnr``, details, and a
+    ``zeitraum_href`` linking to the course dates page)
+- ``kurs_termine``: concrete scheduled sessions (``start_time``, ``end_time``,
+    ``location_name``)
 
-Wie ist der Ablauf?
-1) extract_offers: Hauptseite des Sportprogramms lesen → Liste der Angebote (Name + Link)
-2) extract_courses_for_offer: Für jedes Angebot die Kurs-Tabelle der Detailseite lesen
-3) extract_course_dates: Für jeden Kurs die Unterseite mit allen Terminen öffnen
-4) main: Alles zusammenbauen und in Supabase upserten (Upsert = Insert oder Update)
+Workflow summary:
+1. ``extract_offers`` reads the main index and returns a list of offers.
+2. ``extract_courses_for_offer`` parses the course table for an offer.
+3. ``extract_course_dates`` parses individual course date pages.
+4. ``main`` orchestrates the extraction and upserts data idempotently.
 
-Wichtige Tabellen/Felder in Supabase:
-- sportangebote: { name, href }
-- sportkurse:    { kursnr, offer_href, details, zeitraum_href, preis, … }
-  • offer_name wird temporär als _offer_name gespeichert (für update_cancellations.py)
-  • tag, zeit und leitung wurden entfernt (redundant mit kurs_termine/trainer)
-- kurs_termine:  { kursnr, start_time, end_time, ort_href, location_name }
-  • Primary Key: (kursnr, start_time) - ein Kurs kann zu verschiedenen Zeiten stattfinden
-  • location_name verbindet die Termine mit der Standort-Tabelle `unisport_locations.name`
-  • start_time/end_time: vollständige Timestamps (z. B. "2025-10-22T16:10:00")
-- trainer:        { name (PK), rating (1-5), created_at }
-- kurs_trainer:  { kursnr, trainer_name (FK) }
-  • Many-to-many: Ein Kurs kann mehrere Trainer haben, ein Trainer mehrere Kurse
-  • Trainer-Namen werden aus "leitung" extrahiert (komma-separiert)
-
-Voraussetzungen (ENV-Variablen):
-- SUPABASE_URL: URL deines Supabase-Projekts
-- SUPABASE_KEY: API-Key (am besten Service-Role)
-
-Hinweise:
-- HTML-Selektoren wie "table.bs_kurse" sind wie "Wegweiser" zu den richtigen Stellen im HTML.
-- Wir verwenden Listen/Dictionaries, weil sie sich einfach zu JSON und DB-Zeilen abbilde
-  n lassen.
+The script is written to be idempotent: primary keys (``href``, ``kursnr``,
+``(kursnr,start_time)``) are used during upserts to avoid duplicates.
 """
 
-# Mini-Tutorial:
-# - Schritt 1: Angebote von der Hauptseite ziehen (extract_offers)
-# - Schritt 2: Für jedes Angebot Kurse lesen (extract_courses_for_offer)
-# - Schritt 3: Für jeden Kurs alle Termine lesen (extract_course_dates)
-# - Schritt 4: Alles idempotent (Upsert) in Supabase schreiben
+# Mini tutorial:
+# - Step 1: Fetch offers from the main page (extract_offers)
+# - Step 2: For each offer, read the courses (extract_courses_for_offer)
+# - Step 3: For each course, read all dates (extract_course_dates)
+# - Step 4: Write everything idempotently (upsert) into Supabase
 
-# Imports (Einsteiger-Erklärung, wofür wir sie in DIESEM Skript brauchen)
-# Stell dir die Imports wie Bausteine in Scratch vor – jeder macht eine bestimmte Sache gut.
-# - os: Um Umgebungsvariablen (SUPABASE_URL/KEY) aus dem System/.env zu lesen (unsere "Einstellungen")
+# Imports (beginner-friendly explanation of what we need them for in THIS script)
+# Think of the imports as building blocks in Scratch – each one is good at a specific task.
+# - os: To read environment variables (SUPABASE_URL/KEY) from the system/.env (our "settings")
+
 import os
-# - typing: Für Typ-Hinweise (List, Dict), damit der Code verständlicher ist (nur für Menschen/Werkzeuge)
+# - typing: For type hints (List, Dict) so the code is easier to understand
+
 from typing import List, Dict, Optional
-# - datetime: Um Datumstexte (z. B. 03.10.2025) in ein maschinenlesbares ISO-Format umzuwandeln
+# - datetime: To convert date strings (e.g. 03.10.2025) into a machine-readable ISO format
 from datetime import datetime
-# - urllib.parse.urljoin: Macht aus relativen Links vollständige Internetadressen
+# - urllib.parse.urljoin: Turns relative links into full web addresses
 from urllib.parse import urljoin, urlparse, parse_qs
-# - re: "Suchen mit Muster" in Texten (z. B. Datum/Zeit erkennen)
+# - re: "search with patterns" in texts (e.g. detect date/time)
 import re
-# - requests: Holt Webseiten aus dem Internet
+# - requests: Fetches web pages from the internet
 import requests
-# - bs4.BeautifulSoup: "HTML-Lupe", um Tabellen und Zellen zu finden
+# - bs4.BeautifulSoup: An "HTML magnifying glass" to find tables and cells
 from bs4 import BeautifulSoup
-# - supabase.create_client: Stecker zur Datenbank (lesen/schreiben)
+# - supabase.create_client: Plug to the database (read/write)
 from supabase import create_client
-# - dotenv.load_dotenv: Liest die .env-Datei (damit Keys nicht im Code stehen)
+# - dotenv.load_dotenv: Reads the .env file (so keys don’t live in the code)
 from dotenv import load_dotenv
 import json
 import urllib3
 
 
 def fetch_html(url: str) -> str:
+    """Download HTML content for a URL.
+
+    Uses a requests session with SSL warnings disabled and ``verify=False``
+    to maximize robustness when fetching pages. The function raises on
+    non-success HTTP responses.
+
+    Args:
+        url (str): URL or local file path to fetch.
+
+    Returns:
+        str: Raw HTML content.
     """
-    Lädt den HTML-Text einer URL herunter (einfach mit requests).
-    """
-    # Browser-ähnlicher Header hilft, nicht aussortiert zu werden.
+    # A browser-like header helps to avoid being filtered out.
     import ssl
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
-    # SSL-Problem umgehen durch disable_warnings und verify=False
+    # Work around SSL issues using disable_warnings and verify=False
     session = requests.Session()
     session.verify = False
     
@@ -89,20 +79,20 @@ def fetch_html(url: str) -> str:
 
 
 def extract_offers(source: str) -> List[Dict[str, str]]:
-    """
-    Liest die Hauptseite des Sportprogramms und findet die Liste aller Angebote.
+    """Extract the list of offers from the main index page.
 
-    Was suchen wir im HTML?
-    - Die Angebote stehen in einer Liste mit dem CSS-Selektor "dl.bs_menu dd a".
-    - Jedes <a> hat den sichtbaren Namen (z. B. "Boxen") und einen Link (href) zur Detailseite.
+    The function accepts either a URL or a local file path. It looks for
+    anchor elements under the selector ``dl.bs_menu dd a`` and returns a
+    list of ``{"name": ..., "href": ...}`` dictionaries with absolute
+    ``href`` values.
 
-    Was machen wir damit?
-    - Wir bauen aus Name und Link ein Dictionary: {"name": ..., "href": ...}.
-    - Wir wandeln relative Links in absolute um (urljoin). So funktionieren sie auch außerhalb der Seite.
-    - Wir entfernen Duplikate, falls ein Link mehrfach auftaucht.
-    - Wir filtern bestimmte Nicht-Sportangebote aus (z. B. Kurssuche, Filter-Seiten).
+    Args:
+        source (str): URL or path to the HTML file.
+
+    Returns:
+        List[Dict[str, str]]: Unique offers found on the page.
     """
-    # Liste von Angeboten, die ausgeschlossen werden sollen
+    # List of offers that should be excluded
     excluded_offers = {
         "alle freien Kursplätze dieses Zeitraums",
     }
@@ -124,7 +114,7 @@ def extract_offers(source: str) -> List[Dict[str, str]]:
         if not name or not href:
             continue
         
-        # Überspringe ausgeschlossene Angebote
+        # Skip excluded offers
         if name in excluded_offers:
             continue
             
@@ -137,15 +127,18 @@ def extract_offers(source: str) -> List[Dict[str, str]]:
 
 
 def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
-    """
-    Liest die Detailseite eines Angebots und holt die Kursliste (eine Tabelle).
+    """Parse the course table for a single offer page.
 
-    Was steht da drin?
-    - Jede Tabellenzeile ist ein Kurs mit vielen Spalten (Kursnr, Tag, Zeit, Ort …)
-    - Wir holen die Texte mit Selektoren wie "td.bs_sknr" (Kursnummer) oder "td.bs_szeit" (Zeit).
-    - In manchen Zellen gibt es Links, die wir zusätzlich als href speichern (z. B. Ort-Link).
-    - Besonders wichtig: In der Spalte "Zeitraum" gibt es einen Link zu einer Unterseite mit allen Terminen.
-      Diesen Link speichern wir als "zeitraum_href", um später die exakten Termine zu laden.
+    Returns a list of course dictionaries containing at minimum ``kursnr``
+    and a ``zeitraum_href`` when available. Temporary fields prefixed with
+    ``_`` (e.g. ``_offer_name``) are included to assist later processing
+    (trainer extraction, cancellation mapping) but are not persisted to DB.
+
+    Args:
+        offer (Dict[str, str]): Offer dict with keys ``name`` and ``href``.
+
+    Returns:
+        List[Dict[str, str]]: Courses parsed from the offer page.
     """
     href = offer["href"]
     name = offer["name"]
@@ -169,8 +162,8 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
         tag = text("td.bs_stag")
         zeit = text("td.bs_szeit")
         ort_cell = tr.select_one("td.bs_sort")
-        # Ort-Texte werden nicht mehr in sportkurse gespeichert. Wir benötigen hier primär
-        # location_name für kurs_termine (kommt in extract_course_dates) und belassen sportkurse schlank.
+        # Location texts are no longer stored in sportkurse. Here we primarily need
+        # location_name for kurs_termine (comes in extract_course_dates) and keep sportkurse s
         ort = ort_cell.get_text(" ", strip=True) if ort_cell else ""
         ort_link = ort_cell.select_one("a") if ort_cell else None
         ort_href = urljoin(href, ort_link.get("href")) if (ort_link and ort_link.get("href")) else None
@@ -182,7 +175,7 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
         buch_cell = tr.select_one("td.bs_sbuch")
         buchung = buch_cell.get_text(" ", strip=True) if buch_cell else ""
         
-        # Speichere temporäre Felder für Trainer-Extraktion (werden nicht in DB geschrieben)
+        # Store temporary fields for trainer extraction (not written to the DB)
         course_data = {
             "offer_href": href,
             "kursnr": kursnr,
@@ -190,21 +183,26 @@ def extract_courses_for_offer(offer: Dict[str, str]) -> List[Dict[str, str]]:
             "zeitraum_href": zeitraum_href,
             "preis": preis,
             "buchung": buchung,
-            # Temporäre Felder mit _ markiert
-            "_offer_name": name,  # Wird für update_cancellations.py benötigt
-            "_leitung": leitung,  # Wird für Trainer-Extraktion benötigt
+            # Temporary fields marked with _
+            "_offer_name": name,  # needed for update_cancellations.py
+            "_leitung": leitung,  # needed for Trainer-Extraktion
         }
         rows.append(course_data)
     return rows
 
 
 def extract_offer_metadata(offer: Dict[str, str]) -> Dict[str, str]:
-    """
-    Extrahiert Bild-URL und Beschreibungstext von einer Angebotsseite.
-    
-    Sucht nach:
-    - Dem ersten <img> Tag nach dem h1-Titel (nicht das Logo)
-    - Allen <p> Tags vor der Kurs-Tabelle, die die Beschreibung enthalten
+    """Extract image URL and description paragraphs for an offer page.
+
+    The function tries to find a representative image (not logos/icons)
+    near the page title and collects paragraph tags before the course
+    table to form a description string.
+
+    Args:
+        offer (Dict[str, str]): Offer dict with ``href`` key.
+
+    Returns:
+        Dict[str, str]: May contain keys ``image_url`` and ``description``.
     """
     href = offer["href"]
     if not (href.startswith("http://") or href.startswith("https://")):
@@ -215,20 +213,20 @@ def extract_offer_metadata(offer: Dict[str, str]) -> Dict[str, str]:
     
     result = {}
     
-    # Finde das Element mit dem Titel (kann h1 oder div.bs_head sein)
+    # Find the element with the title (can be h1 or div.bs_head)
     title_element = soup.find("h1") or soup.find("div", class_="bs_head")
     if title_element:
-        # Nach dem Titel suchen wir nach dem ersten <img> Tag
-        # Starte vom Titel und gehe durch alle Geschwister und deren Kinder
+        # After the title, we search for the first <img> tag
+        # Start from the title and go through all siblings and their children
         img_tag = None
         current = title_element.find_next_sibling()
         
         while current and current.name != "table":
-            # Prüfe ob current selbst ein img ist
+            # Check whether current itself is an img
             if current.name == "img":
                 img_tag = current
                 break
-            # Prüfe in allen Kindern dieses Elements
+            # Check all children of this element
             if hasattr(current, 'find_all'):
                 img = current.find("img")
                 if img and img.get("src"):
@@ -240,38 +238,38 @@ def extract_offer_metadata(offer: Dict[str, str]) -> Dict[str, str]:
         
         if img_tag and img_tag.get("src"):
             img_src = img_tag.get("src")
-            # Ignoriere Logos und Icons (oft mit "logo" oder "icon" im src)
+            # Ignore logos and icons (often with "logo" or "icon" in src)
             if "logo" not in img_src.lower() and "icon" not in img_src.lower():
-                # Konvertiere relative URLs zu absoluten URLs
+                # Convert relative URLs to absolute URLs
                 result["image_url"] = urljoin(href, img_src)
     
-    # Finde die Tabelle
+    # find the table
     table = soup.select_one("table.bs_kurse")
     
-    # Sammle alle <p> Tags nach dem Titel
+    # Collect all <p> tags after the title
     paragraphs = []
     
     if title_element:
-        # Finde alle p-Tags nach dem Titel-Element
-        # Suche in allen nachfolgenden Geschwister-Elementen
+        # Find all <p> tags after the title element
+        # Search in all following sibling elements
         current = title_element
         while current:
             current = current.next_sibling
             
-            # Wenn wir eine Tabelle erreichen, stoppe
+            # When we reach a table, stop
             if current and hasattr(current, 'name') and current.name == "table":
                 break
                 
-            # Wenn current ein p-Tag ist, nimm es
+            # If current is a <p> tag, use it
             if current and hasattr(current, 'name') and current.name == "p":
                 paragraphs.append(str(current))
             
-            # Wenn current Kinder hat, suche nach p-Tags in den Kindern
+            # If current has children, look for <p> tags in the children
             if current and hasattr(current, 'find_all'):
                 for p in current.find_all("p"):
                     paragraphs.append(str(p))
     
-    # Entferne Duplikate - behalte die Reihenfolge bei
+    # Remove duplicates – keep the original order
     unique_paragraphs = []
     seen = set()
     for p in paragraphs:
@@ -286,36 +284,41 @@ def extract_offer_metadata(offer: Dict[str, str]) -> Dict[str, str]:
 
 
 def extract_trainer_names(leitung: str) -> List[str]:
-    """
-    Extrahiert einzelne Trainer-Namen aus dem Leitung-Feld.
-    Trennt bei Kommas und bereinigt Whitespace.
-    
-    Beispiel: "Max Mustermann, Anna Schmidt" -> ["Max Mustermann", "Anna Schmidt"]
+    """Split a comma-separated trainers string into a list of names.
+
+    Args:
+        leitung (str): Comma-separated trainer names as presented on the site.
+
+    Returns:
+        List[str]: Cleaned trainer names.
     """
     if not leitung or not leitung.strip():
         return []
     
-    # Split bei Kommas und trimme Whitespace
+    # Split at commas and trim whitespace
     names = [name.strip() for name in leitung.split(",")]
-    # Entferne leere Strings
+    # Remove empty strings
     names = [name for name in names if name]
     return names
 
 
 def parse_time_range(zeit_txt: str) -> tuple[Optional[str], Optional[str]]:
-    """
-    Parst Zeit-String im Format "HH.MM - HH.MM" oder "HH:MM - HH:MM"
-    und gibt (start_time, end_time) als ISO-Strings zurück.
-    
-    Beispiel: "16.10 - 17.40" -> ("16:10:00", "17:40:00")
+    """Parse a human-readable time range into start/end ISO time strings.
+
+    Supports formats like "16.10 - 17.40" or "16:10 - 17:40" and returns
+    a tuple of (start_time, end_time) where each is a string like
+    ``HH:MM:SS`` or ``None`` when parsing fails.
+
+    Returns:
+        tuple[Optional[str], Optional[str]]: (start_time, end_time)
     """
     if not zeit_txt or not zeit_txt.strip():
         return None, None
     
-    # Ersetze Punkt durch Doppelpunkt für konsistentes Format
+    # Replace period with colon for a consistent format
     zeit_normalized = zeit_txt.strip().replace(".", ":")
     
-    # Versuche verschiedene Formate zu parsen
+    # Try to parse different formats
     patterns = [
         r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})",  # 16:10 - 17:40
         r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2})\.(\d{2})",  # 16:10 - 17.40
@@ -336,15 +339,20 @@ def parse_time_range(zeit_txt: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]]:
-    """
-    Öffnet die Unterseite mit den geplanten Terminen eines einzelnen Kurses
-    und sammelt jede Zeile (Tag + Datum + Zeit + Ort) als Datensatz.
+    """Parse the course dates page for a given ``kursnr``.
 
-    Wichtige Idee hier:
-    - Die Seite zeigt oft eine Tabelle mit mehreren Zeilen, jede Zeile ein Termin.
-    - Das Datum steht im Format TT.MM.JJJJ. Wir wandeln es in ISO-Format (JJJJ-MM-TT) um,
-      damit die Datenbank damit gut arbeiten kann und es weltweit eindeutig ist.
-    - Die Zeit steht im Format "HH.MM - HH.MM" und wird in start_time/end_time umgewandelt.
+    Each table row represents a scheduled session. Dates are converted to
+    ISO format (YYYY-MM-DD) and times are converted to ``HH:MM:SS``. The
+    function returns a list of dictionaries suitable for upserting into
+    the ``kurs_termine`` table.
+
+    Args:
+        kursnr (str): Course number identifier.
+        zeitraum_href (str): URL to the course dates page.
+
+    Returns:
+        List[Dict[str, str]]: Parsed date records with keys like
+            ``start_time``, ``end_time``, ``location_name``.
     """
     html = fetch_html(zeitraum_href)
     soup = BeautifulSoup(html, "lxml")
@@ -368,13 +376,13 @@ def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]
         except Exception:
             continue
         
-        # Parse Zeit in start_time und end_time
+        # Parse time into start_time and end_time
         start_time, end_time = parse_time_range(zeit_txt)
         
         location_name = ort_txt.strip() or None
         
-        # Kombiniere datum mit start_time/end_time für timestamp
-        # Falls keine Zeit geparst werden kann, überspringen wir diesen Eintrag
+        # Combine date with start_time/end_time to create a timestamp
+        # If no time can be parsed, we skip this entry
         if not start_time:
             print(f"⚠️  Konnte Zeit nicht parsen für {kursnr} am {datum_iso}: '{zeit_txt}' - Überspringe Eintrag")
             continue
@@ -393,16 +401,13 @@ def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]
 
 
 def apply_overrides(supabase) -> None:
-    """
-    Liest harte Overrides aus .scraper/missing_overrides.json und schreibt sie nach Supabase.
-    Struktur der JSON-Datei:
-    {
-      "sportangebote": [ {"identifier": "<href>", "fields": {"image_url": "...", "description": "..."}} ],
-      "sportkurse": [ {"identifier": "<kursnr>", "fields": {"offer_href": "...", "zeitraum_href": "..."}} ],
-      "kurs_termine": [ {"identifier": "<kursnr>|<YYYY-MM-DDTHH:MM:SS>", "fields": {"ort_href": "...", "location_name": "...", "end_time": "<ISO>"}} ],
-      "unisport_locations": [ {"identifier": "<name>", "fields": {"lat": 47.0, "lng": 9.0, "ort_href": "...", "spid": "..."}} ]
-    }
-    """
+        """Apply manual overrides from ``missing_overrides.json`` to the DB.
+
+        The overrides JSON contains per-table entries that specify an
+        identifier and fields to upsert. This helper upserts each provided
+        override item into the corresponding table using the appropriate
+        conflict key.
+        """
     overrides_path = os.path.join(os.path.dirname(__file__), "missing_overrides.json")
     if not os.path.exists(overrides_path):
         return
@@ -416,7 +421,7 @@ def apply_overrides(supabase) -> None:
     def _safe_fields(d: Dict[str, object]) -> Dict[str, object]:
         return {k: v for k, v in (d or {}).items()}
 
-    # sportangebote by href
+    # sport offers by href
     for item in (data.get("sportangebote") or []):
         href = item.get("identifier")
         fields = _safe_fields(item.get("fields") or {})
@@ -428,7 +433,7 @@ def apply_overrides(supabase) -> None:
         except Exception as e:
             print(f"Override sportangebote fehlgeschlagen ({href}): {e}")
 
-    # sportkurse by kursnr
+    # courses by kursnr
     for item in (data.get("sportkurse") or []):
         kursnr = item.get("identifier")
         fields = _safe_fields(item.get("fields") or {})
@@ -471,16 +476,16 @@ def apply_overrides(supabase) -> None:
             print(f"Override unisport_locations fehlgeschlagen ({name}): {e}")
 
 def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
-    """
-    Ermittelt fehlende Felder in sportangebote, sportkurse, kurs_termine und unisport_locations
-    und merged sie direkt in .scraper/missing_overrides.json.
-    Für jeden neu erkannten Identifier wird (falls noch nicht vorhanden) ein Eintrag mit
-    { identifier, fields: {}, ignore_valueerror: false } angelegt. Bereits vorhandene Einträge
-    behalten ihren bestehenden ignore_valueerror-Wert (insbesondere true bleibt true).
+    """Detect missing fields across main tables and merge into overrides.
+
+    The function inspects multiple tables for missing important fields
+    (e.g. missing ``image_url`` on ``sportangebote``) and ensures that a
+    corresponding entry exists in the ``missing_overrides.json`` file so
+    that maintainers can provide the missing information.
     """
     rows: List[Dict[str, str]] = []
 
-    # sportangebote: fehlende image_url, fehlende description
+    # sport offers: missing image_url, missing description
     try:
         sa1 = supabase.table("sportangebote").select("href,name").is_("image_url", "null").execute()
         sa2 = supabase.table("sportangebote").select("href,name").eq("image_url", "").execute()
@@ -502,7 +507,7 @@ def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
     except Exception:
         pass
 
-    # sportkurse: fehlende offer_href, fehlende zeitraum_href
+    # sportkurse: missing offer_href, missing zeitraum_href
     try:
         sk1 = supabase.table("sportkurse").select("kursnr,details,preis").is_("offer_href", "null").execute()
         sk2 = supabase.table("sportkurse").select("kursnr,details,preis").eq("offer_href", "").execute()
@@ -524,7 +529,7 @@ def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
     except Exception:
         pass
 
-    # kurs_termine: fehlende ort_href, location_name, end_time
+    # kurs_termine: missing ort_href, location_name, end_time
     try:
         kt1 = supabase.table("kurs_termine").select("kursnr,start_time").is_("ort_href", "null").execute()
         kt2 = supabase.table("kurs_termine").select("kursnr,start_time").eq("ort_href", "").execute()
@@ -549,7 +554,7 @@ def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
     except Exception:
         pass
 
-    # unisport_locations: fehlende lat, lng, ort_href, spid
+    # unisport_locations: missing lat, lng, ort_href, spid
     try:
         ul1 = supabase.table("unisport_locations").select("name").is_("lat", "null").execute()
         ul2 = supabase.table("unisport_locations").select("name").is_("lng", "null").execute()
@@ -575,7 +580,7 @@ def generate_missing_info_csv(supabase) -> List[Dict[str, str]]:
     except Exception:
         pass
 
-    # Missing-Einträge direkt in missing_overrides.json mergen (CSV entfällt)
+    # Merge missing entries directly into missing_overrides.json (CSV no longer needed)
     try:
         _merge_missing_into_overrides(rows)
         print(f"missing_overrides.json aktualisiert (Missing-Merge) mit {len(rows)} Einträgen")
@@ -618,7 +623,11 @@ def _build_ignore_set_from_overrides(overrides: Dict[str, object]) -> set:
 
 
 def _save_overrides_json(data: Dict[str, object]) -> None:
-    """Speichert die Overrides-JSON atomar zurück auf die Platte."""
+    """Persist the overrides JSON atomically to disk.
+
+    Writes to a temporary file and replaces the original file to avoid
+    partial writes.
+    """
     overrides_path = os.path.join(os.path.dirname(__file__), "missing_overrides.json")
     tmp_path = overrides_path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as fh:
@@ -627,8 +636,10 @@ def _save_overrides_json(data: Dict[str, object]) -> None:
 
 
 def _ensure_ignore_flags(data: Dict[str, object]) -> None:
-    """Setzt für alle Items standardmäßig ignore_valueerror=false, falls Schlüssel fehlt.
-    Bestehende true-Werte bleiben unberührt.
+    """Ensure every override item has an ``ignore_valueerror`` boolean key.
+
+    Existing ``true`` values remain unchanged; missing keys are set to
+    ``False`` by default so callers can respect the explicit ignore flag.
     """
     for key in [
         "sportangebote",
@@ -644,20 +655,19 @@ def _ensure_ignore_flags(data: Dict[str, object]) -> None:
 
 
 def _merge_missing_into_overrides(rows: List[Dict[str, str]]) -> None:
-    """Merge der fehlenden Identifier in missing_overrides.json.
+    """Merge detected missing identifiers into ``missing_overrides.json``.
 
-    - Fügt pro (table_name, identifier) einen Eintrag hinzu, falls noch nicht vorhanden.
-    - Legt standardmäßig fields={} und ignore_valueerror=false an.
-    - Wenn der Eintrag existiert, wird fehlender ignore_valueerror auf false ergänzt (true bleibt).
+    Adds entries for identifiers that are not yet present and ensures the
+    file structure contains the expected per-table lists.
     """
     data = _load_overrides_json() or {}
 
-    # Stelle sicher, dass die vier Hauptlisten existieren
+    # Make sure the four main lists exist
     for key in ["sportangebote", "sportkurse", "kurs_termine", "unisport_locations"]:
         if key not in data or not isinstance(data.get(key), list):
             data[key] = []
 
-    # Schneller Lookup pro Bereich: identifier -> item
+    # Fast lookup per area: identifier -> item
     def _index_by_identifier(items: List[Dict[str, object]]) -> Dict[str, Dict[str, object]]:
         idx: Dict[str, Dict[str, object]] = {}
         for it in items:
@@ -685,7 +695,7 @@ def _merge_missing_into_overrides(rows: List[Dict[str, str]]) -> None:
         idx = indexes.get(table) or {}
         existing = idx.get(identifier)
         if existing is None:
-            # Neu anlegen
+            # Create new
             new_item: Dict[str, object] = {
                 "identifier": identifier,
                 "fields": {},
@@ -694,19 +704,21 @@ def _merge_missing_into_overrides(rows: List[Dict[str, str]]) -> None:
             data[table].append(new_item)  # type: ignore[arg-type]
             idx[identifier] = new_item
         else:
-            # Flag standardmäßig ergänzen, true bleibt true
+            # Add flag by default; once true, it stays true
             if "ignore_valueerror" not in existing:
                 existing["ignore_valueerror"] = False
 
-    # Global sicherstellen, dass alle Items das Flag haben
+    # Globally ensure that all items have the flag
     _ensure_ignore_flags(data)
     _save_overrides_json(data)
 
 
 def send_missing_info_email_if_needed(rows: List[Dict[str, str]]) -> None:
-    """
-    Sendet eine E-Mail über Loops Transactional, wenn >0 Einträge fehlen.
-    ADMIN_EMAIL und LOOPS_API_KEY müssen als ENV gesetzt sein.
+    """Optionally send an email notification about missing overrides.
+
+    Sends a transactional email via the Loops API when there are missing
+    entries (after honoring ignore flags). Requires ``ADMIN_EMAIL`` and
+    ``LOOPS_API_KEY`` environment variables.
     """
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
     loops_api_key = os.environ.get("LOOPS_API_KEY", "").strip()
@@ -715,23 +727,23 @@ def send_missing_info_email_if_needed(rows: List[Dict[str, str]]) -> None:
         print("Hinweis: ADMIN_EMAIL oder LOOPS_API_KEY nicht gesetzt – überspringe E-Mail.")
         return
 
-    # Lade optionales ignore_valueerror aus Overrides
+    # Optionally load ignore_valueerror from overrides
     overrides = _load_overrides_json()
     ignore_set = _build_ignore_set_from_overrides(overrides)
 
-    # Filtere Einträge, die ignoriert werden sollen (nach Tabelle + Identifier)
+    # Filter entries that should be ignored (by table + identifier)
     filtered = [r for r in rows if (r.get("table_name"), r.get("identifier")) not in ignore_set]
     if len(filtered) <= 0:
         print("Keine fehlenden Einträge (nach Ignorieren) – keine E-Mail.")
         return
 
-    # Baue JSON-Text
+    # build JSON-Text
     try:
         missing_json_text = json.dumps(filtered, ensure_ascii=False, indent=2)
     except Exception:
         missing_json_text = str(filtered)
 
-    # Sende HTTP POST an Loops
+    # Send HTTP POST to Loops
     try:
         import requests
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -756,39 +768,35 @@ def send_missing_info_email_if_needed(rows: List[Dict[str, str]]) -> None:
 
 
 def main() -> None:
-    # 1) Umgebungsvariablen aus einer .env-Datei laden (falls vorhanden)
-    #    Warum? So müssen sensible Daten (z. B. Datenbank-Schlüssel) nicht im Code stehen.
-    #    Stattdessen schreibt ihr sie in eine Datei ".env" im Projektordner, z. B.:
-    #      SUPABASE_URL=https://…
-    #      SUPABASE_KEY=…
-    load_dotenv()  # holt SUPABASE_URL und SUPABASE_KEY aus .env (wenn vorhanden)
-    # 2) Wir verwenden immer die Live-URL der Hauptseite (kein lokaler Pfad nötig)
+    # 1) Load environment variables from .env (if present).
+    #    This keeps credentials out of source control.
+    load_dotenv()
+    # 2) Use the live offers index page as the canonical source
     html_source = "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html"
-    #    Wir holen die Angebote (Name + Link) und speichern sie in einer Liste von Dictionaries.
-    offers = extract_offers(html_source)  # Liste von {name, href}
+    offers = extract_offers(html_source)  # list of {name, href}
 
-    # 3) Mit Supabase verbinden (wir brauchen URL und API-Key aus der .env-Datei)
+    # 3) Connect to Supabase using environment credentials
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_KEY")
     if not supabase_url or not supabase_key:
-        print("Bitte SUPABASE_URL und SUPABASE_KEY als ENV setzen.")
+        print("Please set SUPABASE_URL and SUPABASE_KEY in the environment.")
         return
-    supabase = create_client(supabase_url, supabase_key)  # Verbindung zur DB
+    supabase = create_client(supabase_url, supabase_key)  # DB connection
 
-    # 4) Zuerst schreiben wir die Angebote in die Tabelle "sportangebote".
-    #    Upsert bedeutet: Wenn ein Eintrag schon existiert (gleicher Schlüssel), wird er aktualisiert.
-    #    Schlüssel hier ist die Spalte "href" (der Link zur Angebotsseite).
-    # Idempotent: gleiche href → wird aktualisiert statt dupliziert
+    # 4) First, we write the offers into the "sportangebote" table.
+    #    Upsert means: if an entry already exists (same key), it will be updated.
+    #    The key here is the "href" column (the link to the offer page).
+    # Idempotent: same href → will be updated instead of duplicated
     supabase.table("sportangebote").upsert(offers, on_conflict="href").execute()
     print(f"Supabase: {len(offers)} Angebote upserted (idempotent).")
 
-    # 4b) Extrahiere Bild-URL und Beschreibungstext von jeder Angebotsseite
-    #     und aktualisiere die Einträge in der Datenbank
+    # 4b) Extract image URL and description text from each offer page
+    #     and update the entries in the database
     updated_count = 0
     for offer in offers:
         metadata = extract_offer_metadata(offer)
         if metadata:
-            # Bereite Update vor: href + name + neue Felder
+            # Prepare update: href + name + new fields
             update_data = {
                 "href": offer["href"],
                 "name": offer["name"]
@@ -797,29 +805,29 @@ def main() -> None:
                 update_data["image_url"] = metadata["image_url"]
             if "description" in metadata:
                 update_data["description"] = metadata["description"]
-            # Upsert mit den neuen Feldern
+            # Upsert with the new fields
             supabase.table("sportangebote").upsert(update_data, on_conflict="href").execute()
             updated_count += 1
     print(f"Supabase: Bild-URL und Beschreibungen aktualisiert für {updated_count} Angebote.")
 
-    # 5) Als nächstes sammeln wir alle Kurse aller Angebote.
-    #    Dafür besuchen wir für jedes Angebot die Detailseite und lesen die Kurstabelle.
+    # 5) Next, we collect all courses for all offers.
+    #    For this, we visit the detail page of each offer and read the course table.
     all_courses: List[Dict[str, str]] = []
     for off in offers:  # jede Angebotsseite besuchen
         all_courses.extend(extract_courses_for_offer(off))
-    #    Dann schreiben wir alle Kurse in die Tabelle "sportkurse".
-    #    Schlüssel ist die Kursnummer ("kursnr").
-    # Bereinige temporäre Felder (_leitung) vor dem Upsert
+    #    Then we write all courses into the "sportkurse" table.
+    #    The key is the course number ("kursnr").
+    # Clean up temporary fields (_leitung) before the upsert
     courses_for_db = [
         {k: v for k, v in course.items() if not k.startswith("_")}
         for course in all_courses
     ]
     
-    # Idempotent: gleiche kursnr → wird aktualisiert
+    # Idempotent: same kursnr → will be updated
     supabase.table("sportkurse").upsert(courses_for_db, on_conflict="kursnr").execute()
     print(f"Supabase: {len(courses_for_db)} Kurse upserted (idempotent).")
 
-    # 5b) Extrahiere Trainer-Namen aus allen Kursen und speichere sie
+    # 5b) Extract trainer names from all courses and store them
     trainer_to_courses: Dict[str, List[str]] = {}  # trainer_name -> [kursnr, kursnr, ...]
     
     for course in all_courses:
@@ -832,25 +840,25 @@ def main() -> None:
                     trainer_to_courses[trainer_name] = []
                 trainer_to_courses[trainer_name].append(course["kursnr"])
     
-    # Entdubliziere Trainer-Liste (trainer_name -> rating dict)
+    # Deduplicate trainer list (trainer_name -> rating dict)
     all_trainers: List[Dict[str, object]] = [
         {"name": trainer_name, "rating": 3}
         for trainer_name in trainer_to_courses.keys()
     ]
     
-    # Speichere Trainer in die trainer Tabelle (idempotent)
+    # Save trainers into the trainer table (idempotent)
     if all_trainers:
         supabase.table("trainer").upsert(all_trainers, on_conflict="name").execute()
         print(f"Supabase: {len(all_trainers)} Trainer upserted (idempotent).")
     
-    # Speichere Verknüpfungen in kurs_trainer Tabelle
+    # Save relationships in the kurs_trainer table
     kurs_trainer_rows: List[Dict[str, object]] = []
     for trainer_name, kursnrs in trainer_to_courses.items():
         for kursnr in kursnrs:
             kurs_trainer_rows.append({"kursnr": kursnr, "trainer_name": trainer_name})
     
     if kurs_trainer_rows:
-        # Delete existing relationships for these courses first to avoid duplicates
+        # Lösche vorhandene Verknüpfungen für diese Kurse zuerst, um Duplikate zu vermeiden
         kursnrs_to_update = [course["kursnr"] for course in all_courses]
         for kursnr in kursnrs_to_update:
             supabase.table("kurs_trainer").delete().eq("kursnr", kursnr).execute()
@@ -858,43 +866,43 @@ def main() -> None:
         supabase.table("kurs_trainer").insert(kurs_trainer_rows).execute()
         print(f"Supabase: {len(kurs_trainer_rows)} Kurs-Trainer-Verknüpfungen gespeichert.")
 
-    # 6) Jetzt kommen die exakten Termine pro Kurs.
-    #    Für jeden Kurs gibt es einen Link (zeitraum_href) zu einer Unterseite mit allen geplanten Terminen.
+    # 6) Now we handle the exact dates for each course.
+    #    For each course there is a link (zeitraum_href) to a subpage with all scheduled dates.
     all_dates: List[Dict[str, str]] = []
     for c in all_courses:  # Termine-Seite pro Kurs besuchen
         if c.get("zeitraum_href") and c.get("kursnr"):
             all_dates.extend(extract_course_dates(c["kursnr"], c["zeitraum_href"]))
-    #    Diese Termine schreiben wir zurück in "kurs_termine" (Legacy-Tabelle), jetzt mit location_name-Verknüpfung.
+        # Delete existing relationships for these courses first to avoid duplicates
     if all_dates:
-        # Vor Upsert: ungültige location_name bereinigen (NULL setzen, falls nicht in unisport_locations)
+        # Before upsert: clean invalid location_name (set to NULL if not in unisport_locations)
         loc_resp = supabase.table("unisport_locations").select("name").execute()  # erlaubte Standorte holen
         valid_names = { (r.get("name") or "").strip() for r in (loc_resp.data or []) if r.get("name") }
         for row in all_dates:
             ln = (row.get("location_name") or "").strip()
             if not ln or (valid_names and ln not in valid_names):
                 row["location_name"] = None
-        # MERGE Strategy: canceled Flag wird NICHT überschrieben, nur wenn es nicht gesetzt ist
-        # Lade bestehende canceled Status für alle Termine in einem Query
+        # MERGE strategy: the canceled flag is NOT overwritten, only set if it is not already set
+        # Load existing canceled status for all dates in a single query
         kursnrs_with_dates = [(row["kursnr"], row["start_time"]) for row in all_dates]
         existing_canceled = {}
         
-        # Batch-query für effiziente Status-Abfrage
+    #    We write these dates back into "kurs_termine" (legacy table), now with a location_name link.
         if kursnrs_with_dates:
-            # Hole alle bestehenden canceled Werte
+            # Fetch all existing canceled values
             kursnrs_set = set(kr[0] for kr in kursnrs_with_dates)
             for kursnr in kursnrs_set:
                 resp = supabase.table("kurs_termine").select("kursnr, start_time, canceled").eq("kursnr", kursnr).execute()
                 for term in resp.data or []:
                     existing_canceled[(term["kursnr"], term["start_time"])] = term.get("canceled", False)
         
-        # Setze canceled nur wenn es noch nicht existiert
+        # Set canceled only if it does not already exist
         for row in all_dates:
             key = (row["kursnr"], row["start_time"])
             if key in existing_canceled:
-                # Behalte den bestehenden canceled Status
+                # Keep the existing canceled status
                 row["canceled"] = existing_canceled[key]
             else:
-                # Neuer Termin, canceled = false
+                # New date, canceled = false
                 row["canceled"] = False
         
         supabase.table("kurs_termine").upsert(all_dates, on_conflict="kursnr,start_time").execute()  # Idempotent pro (kursnr, start_time)
@@ -902,23 +910,23 @@ def main() -> None:
     else:
         print("Hinweis: Keine Termine gefunden.")
 
-    # ETL-Run protokollieren
+    # Log ETL run
     try:
         supabase.table("etl_runs").insert({"component": "scrape_sportangebote"}).execute()
     except Exception:
         pass
 
-    # Hinweis: Die Logik zum Erkennen und Markieren von Trainingsausfällen
-    #          wurde nach update_cancellations.py ausgelagert, damit beide
-    #          Skripte unabhängig voneinander lauffähig sind.
+    # Note: The logic for detecting and marking training cancellations
+    #       has been moved to update_cancellations.py so that both
+    #       scripts can run independently.
 
-    # 7) Missing-Info in missing_overrides.json aktualisieren und optional E-Mail senden
+    # 7) Update missing info in missing_overrides.json and optionally send an email
     try:
-        # 7a) Optionale Overrides anwenden, falls Datei vorhanden
+        # 7a) Apply optional overrides if the file exists
         apply_overrides(supabase)
-        # 7b) Danach Missing ermitteln und in missing_overrides.json mergen (keine CSV mehr)
+        # 7b) Then determine missing entries and merge them into missing_overrides.json (no more CSV)
         rows = generate_missing_info_csv(supabase)
-        # 7c) Falls fehlende Einträge vorhanden sind, E-Mail an Admin schicken
+        # 7c) If missing entries exist, send an email to the admin
         send_missing_info_email_if_needed(rows)
     except Exception as e:
         print(f"Warnung: Missing-Info konnte nicht aktualisiert/versendet werden: {e}")
@@ -927,5 +935,5 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# Hinweis (Academic Integrity): Bei der Erstellung dieser Datei wurde das Tool "Cursor"
-# unterstützend verwendet.
+# Note (Academic Integrity): The tool "Cursor" was used as a supporting aid
+# in the creation of this file.

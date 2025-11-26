@@ -1,3 +1,12 @@
+"""Streamlit application entrypoint for UnisportAI.
+
+This module initializes authentication, synchronizes the signed-in
+user with Supabase and mounts the application's top-level pages.
+
+It is intentionally thin: each page under the ``pages/`` folder is
+responsible for rendering its UI and interacting with the data layer.
+"""
+
 import streamlit as st
 from data.auth import is_logged_in, show_login_page, sync_user_to_supabase, check_token_expiry
 

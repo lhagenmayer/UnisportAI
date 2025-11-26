@@ -1,3 +1,13 @@
+"""pages.details
+
+Streamlit page that shows course dates and allows users to join or cancel
+attendance. The module handles filtering of events, rendering of event
+cards, and providing rating widgets for trainers and activities.
+
+This file is executed as a Streamlit page and relies on application state
+managed in `data.state_manager` and events/offers data from Supabase.
+"""
+
 import streamlit as st
 from datetime import datetime, time, timedelta
 from data.supabase_client import (
@@ -26,15 +36,32 @@ if not is_logged_in():
 
 # Helper functions
 def get_user_id():
-    """Holt die user_id aus der users Tabelle"""
+    """Return the database user id for the currently authenticated user.
+
+    Returns:
+        int | None: The `id` value from the users table, or ``None`` when
+        no authenticated user is available.
+    """
     user_sub = get_user_sub()
     if not user_sub:
         return None
-    
+
     return get_user_id_by_sub(user_sub)
 
 def get_event_id(event):
-    """Erstellt eine eindeutige Event-ID"""
+    """Create a stable event identifier used for attendance tracking.
+
+    The ID is a simple concatenation of fields that uniquely represent an
+    event instance. It is used by attendance-related functions to check
+    and mark users as going.
+
+    Args:
+        event (dict): Event record returned from Supabase with keys like
+            ``kursnr``, ``start_time`` and ``location_name``.
+
+    Returns:
+        str: A string identifier for the event.
+    """
     return f"{event.get('kursnr', '')}_{event.get('start_time', '')}_{event.get('location_name', '')}"
 
 # Get current user

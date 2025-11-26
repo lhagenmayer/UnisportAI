@@ -1,3 +1,14 @@
+"""pages.overview
+
+Streamlit page that lists available sports offers (activities) and their
+upcoming events. This overview includes filtering UI provided by the
+sidebar, per-offer metadata (trainers, ratings, upcoming event counts),
+and an ML-based recommendations section.
+
+The module reads application state and offer/event data from the
+``data.state_manager`` and ``data.supabase_client`` modules.
+"""
+
 import streamlit as st
 from datetime import datetime
 from data.supabase_client import get_offers_with_stats, count_upcoming_events_per_offer, get_trainers_for_all_offers, get_events_for_offer, get_events_by_offer_mapping
@@ -11,7 +22,7 @@ if not is_logged_in():
     st.error("❌ Bitte melden Sie sich an.")
     st.stop()
 
-# Get all sports data from database
+# Get all sports data from database and enrich with computed fields
 from data.supabase_client import get_offers_with_stats
 offers_data = get_offers_with_stats()
 
@@ -21,13 +32,15 @@ trainers_map = get_trainers_for_all_offers()
 
 for offer in offers_data:
     href = offer.get('href')
+    # Add quick metadata used by the UI: number of upcoming events and
+    # trainer list. This avoids repeated DB calls during rendering.
     offer['future_events_count'] = event_counts.get(href, 0)
     offer['trainers'] = trainers_map.get(href, [])
 
 # Store in state
 set_sports_data(offers_data)
 
-# Render sidebar with filters (doesn't return anything, just sets filter state)
+# Render sidebar with filters (sets state used by the page)
 render_filters_sidebar(sports_data=offers_data, events=None)
 
 # Get filter values from state
@@ -47,7 +60,7 @@ time_end_filter = get_filter_state('end_time', None)
 selected_locations = get_filter_state('location', [])
 hide_cancelled = get_filter_state('hide_cancelled', True)
 
-# Apply filters
+# Apply filters to offers_data according to saved sidebar state
 offers = filter_offers(
     offers_data,
     show_upcoming_only=show_upcoming_only,
@@ -201,7 +214,8 @@ if offers:
 else:
     st.info("No activities match your selected filters.")
 
-# ML-based recommendations section
+# ML-based recommendations section: uses the ML integration to suggest
+# offers based on the user's state and current filtered results.
 st.markdown("---")
 st.subheader("✨ You Might Also Like")
 render_ml_recommendations_section(

@@ -1,3 +1,11 @@
+"""pages.recommendations
+
+Streamlit page that collects a user's fitness preferences via a form and
+requests sport recommendations from the ML integration. The page displays
+ranked recommendations and additional information (ratings, upcoming
+events) when the corresponding offer exists in the database.
+"""
+
 import streamlit as st
 from data.auth import is_logged_in
 from data.ml_integration import get_sport_recommendations, validate_user_preferences
@@ -67,7 +75,9 @@ with st.form("preferences_form"):
     submitted = st.form_submit_button("🚀 Empfehlungen erhalten", use_container_width=True)
 
 if submitted:
-    # Prepare user preferences
+    # Build the preference vector as expected by the ML model. Numeric
+    # sliders are passed directly; boolean checkboxes are converted to
+    # floats in [0.0, 1.0] to match the training input schema.
     user_preferences = {
         'balance': balance,
         'flexibility': flexibility,
@@ -83,64 +93,61 @@ if submitted:
         'setting_solo': 1.0 if setting_solo else 0.0,
         'setting_competitive': 1.0 if setting_competitive else 0.0
     }
-    
-    # Validate preferences
+
+    # Validate the prepared preference dictionary before sending to ML
     if not validate_user_preferences(user_preferences):
         st.error("❌ Ungültige Präferenzen. Bitte überprüfe deine Eingaben.")
         st.stop()
-    
-    # Get recommendations
+
+    # Request recommendations from the ML layer
     with st.spinner('🤖 KI analysiert deine Präferenzen...'):
         recommendations = get_sport_recommendations(user_preferences, top_n=10)
-    
+
     if not recommendations:
         st.error("❌ Keine Empfehlungen gefunden. Bitte versuche es erneut.")
         st.stop()
-    
-    # Display recommendations
+
+    # Inform user and render results. We load all offers once and match by
+    # human-readable name returned by the model to the DB offer records.
     st.success(f"✅ Hier sind deine Top {len(recommendations)} Empfehlungen!")
-    
-    # Load all offers once
+
     all_offers = get_offers_with_stats()
     offers_dict = {offer['name']: offer for offer in all_offers}
-    
-    # Display each recommendation
+
     for i, (sport_name, confidence) in enumerate(recommendations, 1):
-        # Find matching offer
         offer = offers_dict.get(sport_name)
-        
+
         if offer:
             with st.container():
                 st.markdown(f"### {i}. {sport_name}")
-                
+
                 col_a, col_b, col_c = st.columns([2, 2, 1])
-                
+
                 with col_a:
                     st.metric("Match-Score", f"{confidence:.1f}%")
-                
+
                 with col_b:
                     if offer.get('avg_rating'):
                         stars = "⭐" * int(offer['avg_rating'])
                         st.metric("Bewertung", f"{stars} ({offer['avg_rating']:.1f})")
                     else:
                         st.metric("Bewertung", "Noch keine Bewertungen")
-                
+
                 with col_c:
                     if offer.get('future_events_count', 0) > 0:
                         st.metric("Kurse", f"{offer['future_events_count']}")
                     else:
                         st.metric("Kurse", "Keine")
-                
-                # Show details
+
+                # Offer description and a short list of upcoming events
                 if offer.get('beschreibung'):
                     with st.expander("📝 Beschreibung"):
                         st.write(offer['beschreibung'])
-                
-                # Show upcoming events
+
                 if offer.get('future_events_count', 0) > 0:
                     with st.expander(f"📅 Nächste Termine ({offer['future_events_count']})"):
                         events = get_events_for_offer(offer['href'])
-                        
+
                         if events:
                             for event in events[:5]:  # Show first 5 events
                                 col_x, col_y = st.columns([3, 1])
@@ -152,10 +159,10 @@ if submitted:
                                         st.error("Abgesagt")
                         else:
                             st.info("Keine Termine verfügbar")
-                
+
                 st.divider()
         else:
-            # Sport not in database
+            # The ML model suggested a sport that is not present in the DB.
             with st.container():
                 st.markdown(f"### {i}. {sport_name}")
                 st.metric("Match-Score", f"{confidence:.1f}%")

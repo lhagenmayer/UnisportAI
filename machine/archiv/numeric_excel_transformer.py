@@ -1,45 +1,72 @@
+"""Archive helpers: Excel -> ML-ready transformer
+--------------------------------------------------
+This archival script contains utilities used to transform the
+original Excel sheets (course / sport descriptions) into a
+numerical, ML-ready file named ``Sportangebot_ML_ready.xlsx``.
+
+The script is older and kept in ``archiv/`` for reproducibility.
+It performs tasks such as percent-to-float conversion, qualitative
+value mapping, tag splitting and automatic one-hot encoding for
+textual tag columns.
+
+Note: The script is kept intentionally permissive (heuristics) and
+should be reviewed before reusing on different input files.
+"""
+
 import pandas as pd
 import re
 
-# === 1. Excel einlesen ===
+# === 1. Read Excel file ===
 df = pd.read_excel("Sportangebot inkl. Kategorien.xlsx")
 
-# === 2. Alle Prozentwerte in Zahlen (0–1) umwandeln ===
+# === 2. Convert all percentage values to numbers (0–1) ===
 def percent_to_float(x):
+    """Convert percentage-like strings to floats in 0..1 range.
+
+    Examples:
+        "50%" -> 0.5
+        "75"  -> 75 (caller must decide if this is percent or raw)
+
+    Args:
+        x: Cell value (possibly a string containing "%").
+
+    Returns:
+        float or original value when not convertible.
+    """
     if isinstance(x, str) and "%" in x:
         return float(re.sub("[^0-9.]", "", x)) / 100
     return x
 
 df = df.applymap(percent_to_float)
 
-# === 3. Qualitative Werte ersetzen ===
+# === 3. Replace qualitative values ===
 replace_map = {
     "Solo": 1, "Duo": 0.5, "Team": 0,
     "High": 1, "Moderate": 0.5, "Low": 0
 }
 df = df.replace(replace_map)
 
-# === 4. Automatische One-Hot-Encoding für alle Tags-Spalten ===
-# (falls Tags in einer Spalte als Liste oder Komma-getrennt stehen)
+# === 4. Automatic one-hot encoding for all tag columns ===
+# (if tags in a column are stored as a list or comma-separated)
 def split_tags(cell):
     if isinstance(cell, str):
         tags = re.split(r'[,;/\|]', cell)
         return [t.strip() for t in tags if t.strip()]
     return []
 
-# Wir suchen nach Textspalten mit Tags
+# We look for text columns with tags
 for col in df.columns:
     if df[col].dtype == object:
-        # Alle vorkommenden Tags sammeln
+        # Collect all occurring tags
         all_tags = set(tag for cell in df[col].dropna() for tag in split_tags(cell))
-        # Für jeden Tag eine Spalte anlegen
+        # Create one column for each tag
         for tag in all_tags:
             df[tag] = df[col].apply(lambda x: 1 if isinstance(x, str) and tag in x else 0)
 
 # === 5. Nicht-numerische Spalten entfernen, falls sie keine Zahlen enthalten ===
 df_cleaned = df.select_dtypes(include=["number", "float", "int"])
 
-# === 6. Ergebnis speichern ===
+# === 6. Save result ===
 df_cleaned.to_excel("Sportangebot_ML_ready.xlsx", index=False)
 print("✅ Datei gespeichert: Sportangebot_ML_ready.xlsx")
 # ...existing code...
@@ -50,42 +77,53 @@ import re
 INPUT = "Sportangebot inkl. Kategorien.xlsx"
 OUTPUT = "Sportangebot_ML_ready.xlsx"
 
-# === Konfiguration: Spalten, die unverändert bleiben sollen (case-insensitive) ===
-# Erkennungsfunktion für "kurs nr" und "angebot"
+# === Configuration: columns that should remain unchanged (case-insensitive) ===
+# Detection function for "kurs nr" and "angebot"
 def is_preserved(colname: str):
     s = re.sub(r"\s+", "", colname.lower())
     if "angebot" in s:
         return True
     if "kurs" in s and ("nr" in s or "nummer" in s or "no" in s):
         return True
-    # genaue Matches zusätzlich:
+    # additional exact matches:
     if s in ("kursnr","kursnummer","kurs","angebot"):
         return True
     return False
 
-# === Umbenennungs-Map für Focus-Spalten (anpassen nach Bedarf) ===
+# === Rename map for focus columns (adjust as needed) ===
 rename_map = {
     "focus1": "endurance",
     "focus 1": "endurance",
     "focus2": "relaxation",
     "focus 2": "relaxation",
-    # weitere Zuordnungen hier hinzufügen, z.B. "focus3": "team"
+    # add further mappings here, e.g. "focus3": "team"
 }
 
-# Hilfsfunktionen
-SEP_PATTERN = r'[,;/\|]+'  # Trenner für Tag-Felder
-
+# Helper functions
+SEP_PATTERN = r'[,;/\|]+'  # Separator
 QUAL_MAP = {
     "solo": 1.0, "duo": 0.5, "team": 0.0,
     "high": 1.0, "moderate": 0.5, "medium": 0.5, "low": 0.0
 }
 
 def percent_to_float_str(s: str):
+    """Parse a percentage-like string and return a float.
+
+    Tries to find a number followed by a percent sign and converts it
+    to a 0..1 float. If only a number is present, heuristically
+    interprets values in (1..100] as percents and divides by 100.
+
+    Args:
+        s: Input string (e.g. "45%", "75", "12,5%").
+
+    Returns:
+        Float value or ``None`` when parsing fails.
+    """
     m = re.search(r"([-+]?\d+[.,]?\d*)\s*%", s)
     if m:
         val = float(m.group(1).replace(",", "."))
         return val / 100.0
-    # Fallback: reine Zahl heuristisch als Prozent, wenn 1<val<=100
+    # Fallback: treat a pure number heuristically as a percent if 1 < val <= 100
     m2 = re.search(r"([-+]?\d+[.,]?\d*)", s)
     if m2:
         v = float(m2.group(1).replace(",", "."))
@@ -95,26 +133,42 @@ def percent_to_float_str(s: str):
     return None
 
 def normalize_cell(cell):
+    """Normalize a single Excel cell to numeric or a cleaned string.
+
+    Behavior:
+    - ``NaN`` values are preserved.
+    - Numeric types are converted to ``float``.
+    - Strings are stripped and various heuristics are applied:
+      percent detection, qualitative mapping (e.g. "solo" -> 1.0),
+      and numeric parsing with comma-decimal handling.
+
+    Args:
+        cell: Original cell value.
+
+    Returns:
+        Normalized numeric value, ``np.nan``, or the original string
+        when no numeric interpretation is possible.
+    """
     if pd.isna(cell):
         return np.nan
     if isinstance(cell, (int, float, np.number)):
         val = float(cell)
-        # falls eine ganze Zahl zwischen 2..100 vermutlich Prozent -> nicht automatisch konvertieren hier
+        # if an integer between 2..100, probably a percentage -> do not automatically convert here
         return val
     if isinstance(cell, str):
         s = cell.strip()
         if s == "":
             return np.nan
         low = s.lower()
-        # Prozenterkennung
+        # Percentage detection
         if "%" in s:
             pct = percent_to_float_str(s)
             if pct is not None:
                 return float(pct)
-        # direktes Mapping qualitative
+        # Direct mapping of qualitative values
         if low in QUAL_MAP:
             return QUAL_MAP[low]
-        # reine Zahl als String
+        # pure number as string
         try:
             v = float(s.replace(",", "."))
             if 1 < v <= 100:
@@ -122,60 +176,74 @@ def normalize_cell(cell):
             return v
         except Exception:
             pass
-    # falls nicht konvertierbar: retourniere Original string (für Tag-Processing)
+    # if not convertible: return original string (for tag processing)
     return cell
 
 def split_tags(cell):
+    """Split a tag-like cell into individual tag strings.
+
+    Removes parenthetical content and splits on common separators
+    (comma, semicolon, slash, pipe).
+
+    Args:
+        cell: Input string containing tags.
+
+    Returns:
+        List[str] of cleaned tag tokens.
+    """
     if not isinstance(cell, str):
         return []
-    text = re.sub(r"\(.*?\)", "", cell)  # Klammerinhalt entfernen
+    text = re.sub(r"\(.*?\)", "", cell)
     parts = re.split(SEP_PATTERN, text)
     return [p.strip() for p in parts if p and p.strip()]
 
 def safe_colname(name: str):
+    """Return a filesystem/column-safe lowercase identifier.
+
+    Converts characters not matching ``\w`` to underscores and trims
+    surrounding underscores.
+    """
     return re.sub(r"[^\w]+", "_", name.strip().lower()).strip("_")
 
-# === 1. Einlesen ===
+# === 1. Read in ===
 df = pd.read_excel(INPUT, dtype=object)
 orig_cols = list(df.columns)
 
-# === 2. Ergebnis-Frame vorbereiten: bewahre Kurs/Angebot, fülle restliche Spalten numerisch ===
+# === 2. Prepare result frame: keep course/offer, fill remaining columns numerically ===
 out = pd.DataFrame(index=df.index)
 
-# Erhalte preserved columns unverändert (Originalwerte)
+# Keep preserved columns unchanged (original values)
 for c in orig_cols:
     if is_preserved(c):
         out[c] = df[c]
 
-# === 3. Verarbeite alle anderen Spalten ===
-# 3a) Zuerst rename map anwenden auf Spaltennamen (falls passende existieren)
+# === 3. Process all other columns ===
+# 3a) First apply the rename map to column names (if matching columns exist)
 col_rename_lookup = {}
 for c in orig_cols:
     key = c.strip().lower()
     if key in rename_map:
         col_rename_lookup[c] = rename_map[key]
     else:
-        # auch versuchen ohne Leerzeichen
+        
         k2 = key.replace(" ", "")
         if k2 in rename_map:
             col_rename_lookup[c] = rename_map[k2]
 
-# Sammle generierte Tag-Spalten um Namenskonflikte zu vermeiden
+# Collect generated tag columns to avoid name conflicts
 generated_cols = set(out.columns)
 
 for col in orig_cols:
     if is_preserved(col):
         continue
 
-    new_col_base = col_rename_lookup.get(col, col)  # entweder gemappt oder Originalname
+    new_col_base = col_rename_lookup.get(col, col)  
     new_col_base_safe = safe_colname(new_col_base)
 
-    # Normalisiere Zellen
     normalized = df[col].apply(normalize_cell)
 
-    # Falls alle Werte numerisch (oder NaN) -> direkt übernehmen unter neuem Namen
+    # If all values are numeric (or NaN) -> take them over directly under the new name
     if normalized.dropna().apply(lambda x: isinstance(x, (int, float, np.number))).all():
-        # sichere Spaltenbezeichnung
         target = new_col_base_safe
         i = 1
         while target in generated_cols:
@@ -185,18 +253,16 @@ for col in orig_cols:
         generated_cols.add(target)
         continue
 
-    # Sonst: Spalten enthalten Text / Tags -> splitten in binäre Tag-Spalten
-    # Sammle alle Tags
+    # Otherwise: columns contain text/tags -> split into binary tag columns
+    # Collect all tags
     all_tags = set()
     for cell in normalized.dropna():
         if isinstance(cell, str):
             for t in split_tags(cell):
                 all_tags.add(t)
-    # Wenn keine multi-tags, aber wenige distinct single-values -> One-Hot für diese Werte
+    # If there are no multi-tags but a few distinct single values -> one-hot encode these values
     if len(all_tags) == 0:
-        # verbleibende unique string values
         uniques = sorted({v for v in normalized.dropna().astype(str)})
-        # falls nur ein einzelner unique Wert -> mappe auf 1/0
         if len(uniques) == 1:
             colname = f"{new_col_base_safe}"
             i = 1
@@ -206,7 +272,6 @@ for col in orig_cols:
             out[colname] = normalized.apply(lambda x: 1.0 if str(x).strip() == uniques[0] else 0.0 if pd.notna(x) else np.nan)
             generated_cols.add(colname)
         else:
-            # One-hot für alle unique strings
             for val in uniques:
                 tag_safe = safe_colname(f"{new_col_base_safe}_{val}")
                 i = 1
@@ -218,7 +283,6 @@ for col in orig_cols:
                 generated_cols.add(tagname)
         continue
 
-    # Erstelle binäre Spalte pro Tag
     for tag in sorted(all_tags):
         tag_safe = safe_colname(f"{new_col_base_safe}_{tag}")
         i = 1
@@ -229,9 +293,9 @@ for col in orig_cols:
         out[tagname] = normalized.apply(lambda x: 1.0 if isinstance(x, str) and tag in split_tags(x) else 0.0)
         generated_cols.add(tagname)
 
-# === 4. Optional: bestimmte NaNs in numerischen Eigenschaften behandeln (aktuell nicht automatisch imputiert) ===
-# Beispiel: out.fillna(0, inplace=True)  # falls gewünscht
+# === 4. Optional: handle certain NaNs in numerical features (currently not imputed automatically) ===
+# Example: out.fillna(0, inplace=True)  # if desired
 
-# === 5. Speichern ===
+# === 5. Save ===
 out.to_excel(OUTPUT, index=False)
 print(f"✅ Datei gespeichert: {OUTPUT} ({out.shape[0]} Zeilen, {out.shape[1]} Spalten)")

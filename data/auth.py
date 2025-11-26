@@ -1,5 +1,9 @@
-"""
-Authentifizierungsmodul für Streamlit mit Google OIDC und Supabase
+"""Authentication helpers for Streamlit using Google OIDC and Supabase.
+
+This module provides functions to manage login, logout, redirect URIs
+and synchronization of the authenticated user with Supabase. It is
+designed to work in both local development and Streamlit Cloud
+environments.
 """
 
 import streamlit as st
@@ -9,14 +13,10 @@ import os
 
 
 def _get_redirect_uri() -> str:
-    """
-    Returns the appropriate redirect URI based on environment.
-    - Local: http://localhost:8501/oauth2callback (or configured port)
-    - Cloud: https://unisportai.streamlit.app/oauth2callback
-    
-    This function is used to dynamically determine the redirect URI.
-    Note: Streamlit's st.login() reads from secrets, so we also update
-    the secrets structure if possible, or use environment variables.
+    """Return the appropriate OAuth redirect URI for the running environment.
+
+    The function attempts to detect Streamlit Cloud vs local development
+    and returns a suitable redirect URI accordingly.
     """
     # Check if running on Streamlit Cloud
     # Streamlit Cloud sets specific environment variables
@@ -59,17 +59,12 @@ def _get_redirect_uri() -> str:
 
 
 def _update_redirect_uri_in_secrets():
-    """
-    Validates that the redirect_uri in secrets matches the expected value for the environment.
-    
-    Since Streamlit's st.login() reads redirect_uri from secrets (which are immutable at runtime),
-    we can only validate and warn if there's a mismatch. The actual redirect_uri must be set
-    correctly in:
-    - Local: `.streamlit/secrets.toml` → `http://localhost:8501/oauth2callback`
-    - Cloud: Streamlit Cloud Secrets → `https://unisportai.streamlit.app/oauth2callback`
-    
-    Returns:
-        The expected redirect_uri for the current environment
+    """Validate and return the expected redirect URI for the environment.
+
+    The function compares the expected URI with the one present in
+    ``st.secrets`` and warns if a likely mismatch is detected. It also
+    sets an environment variable ``STREAMLIT_AUTH_REDIRECT_URI`` as a
+    fallback for other OAuth helpers.
     """
     expected_uri = _get_redirect_uri()
     
@@ -109,7 +104,11 @@ def _update_redirect_uri_in_secrets():
 
 
 def is_logged_in():
-    """Safely check if user is logged in"""
+    """Return True when a user is currently authenticated in Streamlit.
+
+    The function uses a defensive attribute access to avoid errors when
+    executed in contexts without a Streamlit ``user`` object.
+    """
     try:
         return hasattr(st.user, 'is_logged_in') and st.user.is_logged_in
     except AttributeError:
@@ -117,7 +116,12 @@ def is_logged_in():
 
 
 def clear_user_session():
-    """Clears all user-related session state on logout"""
+    """Clear application session state related to the current user.
+
+    This helper removes filter/navigation state, cached sports data and
+    any stored user activities. It is intended to run during logout to
+    ensure a clean session for the next user.
+    """
     # Clear filter states
     filter_keys = ['intensity', 'focus', 'setting', 'location', 'weekday', 'offers', 
                    'search_text', 'date_start', 'date_end', 'start_time', 'end_time',
@@ -148,14 +152,23 @@ def clear_user_session():
 
 
 def handle_logout():
-    """Handles the logout process with proper cleanup"""
+    """Perform logout with cleanup and rerun the Streamlit app.
+
+    This function clears user state, calls ``st.logout()`` and triggers
+    a rerun so the UI returns to an unauthenticated state.
+    """
     clear_user_session()
     st.logout()
     st.rerun()
 
 
 def check_auth():
-    """Prüft die Authentifizierung und leitet zur Login-Seite um wenn nicht eingeloggt"""
+    """Ensure the user is authenticated and show the login page otherwise.
+
+    Returns True when authentication is valid. When the user is not
+    logged in the function displays the login UI and stops Streamlit's
+    execution flow.
+    """
     if not is_logged_in():
         show_login_page()
         st.stop()
@@ -163,7 +176,12 @@ def check_auth():
 
 
 def show_login_page():
-    """Zeigt die Login-Seite mit Google OAuth"""
+    """Render the application login page with Google OAuth instructions.
+
+    The function displays helpful instructions and a prominent sign-in
+    button. It also validates redirect URI configuration and warns when
+    secrets appear misconfigured for the detected environment.
+    """
     
     # Validate redirect URI configuration
     # Note: Streamlit's st.login() reads redirect_uri from secrets (immutable)
@@ -275,42 +293,52 @@ def show_login_page():
 
 
 def get_user_sub():
-    """Gibt die eindeutige Benutzer-ID zurück (sub-Claim aus OIDC Token)"""
+    """Return the OIDC ``sub`` claim for the authenticated user.
+
+    Returns ``None`` when no user is logged in.
+    """
     if is_logged_in():
         return st.user.sub
     return None
 
 
 def get_user_email():
-    """Gibt die E-Mail-Adresse des eingeloggten Benutzers zurück"""
+    """Return the authenticated user's email address or ``None``.
+    """
     if is_logged_in():
         return st.user.email
     return None
 
 
 def check_token_expiry():
-    """Prüft ob der Token abgelaufen ist und leitet zum Logout um"""
+    """Check whether the user's token has expired and force logout.
+
+    If the token is expired the function triggers the logout workflow.
+    It silently returns when no user is logged in.
+    """
     if not is_logged_in():
         return
-    
-    # Prüfe ob exp-Claim vorhanden und abgelaufen
+
     try:
-        # Extrahiere expires_at aus user object falls verfügbar
+        # Extract expires_at from the st.user object if available
         if hasattr(st.user, 'expires_at') and st.user.expires_at:
             if datetime.now(timezone.utc) > st.user.expires_at:
                 st.warning("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.")
                 handle_logout()
     except Exception as e:
-        st.error(f"Fehler beim Prüfen des Tokens: {e}")
+        st.error(f"Error checking token expiry: {e}")
 
 
 
 
 def get_user_info_dict():
-    """Gibt die vollständigen Benutzerinformationen als Dictionary zurück"""
+    """Return a dictionary with basic user information from Streamlit.
+
+    Returns ``None`` when no user is authenticated.
+    """
     if not is_logged_in():
         return None
-    
+
     return {
         'sub': st.user.sub,
         'email': st.user.email,
@@ -323,7 +351,11 @@ def get_user_info_dict():
 
 
 def sync_user_to_supabase():
-    """Syncs the current authenticated user to Supabase"""
+    """Synchronize the authenticated user record into Supabase.
+
+    This creates or updates a user row in the ``users`` table using the
+    information available from the Streamlit user object.
+    """
     from data.supabase_client import create_or_update_user
     
     user_info = get_user_info_dict()

@@ -1,45 +1,24 @@
+"""Extract Unisport location data and persist to Supabase.
+
+This script collects venue/location information from the Unisport website
+and writes it into the ``unisport_locations`` table in Supabase. It
+combines data from two sources on the page:
+
+1. A JavaScript `markers` array containing coordinates and names.
+2. A location menu that contains links (from which a ``spid`` parameter
+    can be extracted) and the list of sports offered at each location.
+
+The resulting records contain fields such as ``name``, ``lat``, ``lng``,
+``ort_href``, ``spid`` and ``sports``. If Supabase credentials are not
+present in the environment the script will only print a summary.
 """
-Dieses Skript sammelt alle Unisport-Veranstaltungsorte (Locations) direkt von der
-Live-Webseite und speichert sie unmittelbar in Supabase (Tabelle `unisport_locations`).
-
-Was macht das Skript in einfachen Worten?
-- Es lädt eine Unisport-Seite, auf der alle Orte aufgelistet sind.
-- In dieser Seite stehen zwei wichtige Informationsquellen:
-  1) Eine JavaScript-Liste mit Markern ("var markers=[...]"), in der für viele Orte die
-     GPS-Koordinaten (Breite/Länge) und der Name stehen.
-  2) Ein Menü mit allen Orten, in dem zusätzlich die Sportarten je Ort und der Detail-Link
-     ("ort_href") enthalten sind. Aus dem Link liest das Skript auch eine interne ID ("spid") aus.
-- Aus diesen beiden Quellen baut das Skript eine saubere Liste aller Orte zusammen.
-- Dann schreibt es diese Liste direkt in die Datenbank (Supabase), ohne einen Zwischenschritt.
-
-Welche Daten landen in der Tabelle `unisport_locations`?
-- name: der Name des Standorts (z. B. "HSG, Halle 1")
-- lat / lng: geografische Koordinaten (soweit vorhanden)
-- ort_href: absoluter Link zur Standort-Unterseite (z. B. zum Unisport-Menüeintrag)
-- spid: die Standort-ID, die im Link als Parameter steckt
-- sports: ein Array (Liste) der Sportangebote am Standort
-
-Voraussetzungen, damit das Schreiben in Supabase klappt:
-- Umgebungsvariablen setzen:
-  SUPABASE_URL = URL deines Supabase-Projekts
-  SUPABASE_KEY = API-Key (am besten Service-Role Key für Writes)
-
-So führst du das Skript aus:
-- Im Terminal:
-    export SUPABASE_URL=...  # deine URL
-    export SUPABASE_KEY=...  # dein Key
-    python3 extract_locations_from_html.py
-
-Hinweis: Wenn die Variablen fehlen, wird nur die Anzahl gefundener Orte ausgegeben.
-"""
-
-# Mini-Tutorial:
-# - Schritt 1: Wir laden die Webseite (fetch_html).
-# - Schritt 2: Wir lesen Koordinaten und Namen aus der JS-Liste (parse_markers).
-# - Schritt 3: Wir lesen Sportarten je Standort aus dem Menü (parse_location_sports).
-# - Schritt 4: Wir lesen Standort-Links und IDs (parse_location_links).
-# - Schritt 5: Wir führen alles pro Standort zusammen (merged).
-# - Schritt 6: Wir schreiben alles idempotent in Supabase (Upsert nach name, das ist der Primary Key).
+# Mini tutorial:
+# - Step 1: We load the website (fetch_html).
+# - Step 2: We read coordinates and names from the JS list (parse_markers).
+# - Step 3: We read sports per location from the menu (parse_location_sports).
+# - Step 4: We read location links and IDs (parse_location_links).
+# - Step 5: We merge everything per location (merged).
+# - Step 6: We write everything idempotently to Supabase (upsert by name, which is the primary key).
 
 import json
 import os
@@ -50,27 +29,29 @@ import requests
 from dotenv import load_dotenv
 from difflib import SequenceMatcher  # For fuzzy matching
 
-# Erklärung zu den Imports (wie "Bausteine" in Scratch):
-# - json: Wandelt Daten in Text (JSON) und zurück. Brauchen wir, um Listen/Objekte lesbar zu machen.
-# - os: Zugriff auf Umgebungsvariablen (z. B. SUPABASE_URL). Wie ein Rucksack mit Einstellungen.
-# - re: "Suchen & Finden" in Texten mit Mustern (Reguläre Ausdrücke). Wie eine Lupe mit Filter.
-# - typing (Dict, List, Optional): Nur für Menschen/Entwicklungswerkzeuge, um Datentypen zu beschreiben.
-# - requests: Webseiten laden
-# - dotenv: Liest eine .env-Datei ein, damit wir Keys/URLs nicht in den Code schreiben müssen.
-# - supabase.create_client: Der Stecker zur Datenbank. Damit können wir Daten einfügen/lesen/ändern.
+# Explanation of the imports (like "building blocks" in Scratch):
+# - json: Converts data to text (JSON) and back. We need it to make lists/objects readable.
+# - os: Access to environment variables (e.g., SUPABASE_URL). Like a backpack full of settings.
+# - re: "Search & find" in texts using patterns (regular expressions). Like a magnifying glass with a filter.
+# - typing (Dict, List, Optional): Only for humans/development tools to describe data types.
+# - requests: Load web pages.
+# - dotenv: Reads a .env file so we don’t have to write keys/URLs directly into the code.
+# - supabase.create_client: The plug to the database. With it we can insert/read/update data.
 
 from bs4 import BeautifulSoup  # type: ignore
 
 
-# Live-Quelle: Veranstaltungsorte/Räume
+# Live source: event venues/rooms
+
 SOURCE_URL = "https://www.sportprogramm.unisg.ch/unisg/cgi/webpage.cgi?orte"
-# Das ist die Live-Seite mit allen Veranstaltungsorten. Wir lesen sie nur (kein Login nötig).
+# This is the live page with all event venues. We only read it (no login required).
 
 
 def fetch_html(url: str) -> str:
     """
-    Lädt den Text einer Webseite ausschließlich via requests.
+    Loads the text of a website using only requests.
     """
+
     r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
     r.raise_for_status()
     return r.text
@@ -81,9 +62,10 @@ def parse_markers(html: str) -> List[Dict[str, object]]:
     Extracts marker entries from a JS array literal like:
     var markers=[[47.42901,9.38402,"Athletik Zentrum, Gymnastikraum"], ...];
     Returns list of dicts: {"name": str, "lat": float, "lng": float}
-    Wir suchen in dem HTML-Text nach einer Stelle, wo Koordinaten und Namen
-    in einer Liste stehen. Dann schneiden wir uns jeden Eintrag heraus.
+    In the HTML text, we search for a section where coordinates and names
+    are stored in a list. Then we extract each entry from it.
     """
+
     m = re.search(r"var\s+markers\s*=\s*\[(.*?)\];", html, re.S)
     if not m:
         return []
@@ -129,9 +111,10 @@ def parse_location_sports(html_content: str) -> Dict[str, List[str]]:
     """
     Extract mapping from location name to list of sports using the 'bs_flmenu' menu.
     Returns dict: name -> [sports]
-    Auf der Seite gibt es auch ein Menü, wo unter jedem Ort die Sportarten
-    aufgelistet sind. Wir laufen durch diese Liste und bauen ein Wörterbuch: Ort → [Sportarten].
+    On the page, there is also a menu where the sports are listed under each location.
+    We go through this list and build a dictionary: location → [sports].
     """
+
     mapping: Dict[str, List[str]] = {}
     soup = BeautifulSoup(html_content, "lxml")
     menu = soup.select_one("div.bs_flmenu > ul")
@@ -154,10 +137,10 @@ def parse_location_sports(html_content: str) -> Dict[str, List[str]]:
 
 def parse_location_links(html_content: str, base_url: Optional[str] = None) -> Dict[str, Dict[str, Optional[str]]]:
     """
-    Liest aus dem Menü (div.bs_flmenu) die Standortlinks (href) und extrahiert spid.
-    Gibt zurück: name -> {"href": absolute URL|None, "spid": str|None}
-    Idee: Jeder Ort hat auch einen Link zu einer Detailseite. Aus dem Link holen wir
-    die vollständige Adresse (href) und eine interne Kennung (spid) heraus.
+    Reads the location links (href) from the menu (div.bs_flmenu) and extracts spid.
+    Returns: name -> {"href": absolute URL|None, "spid": str|None}
+    Idea: Each location also has a link to a detail page. From this link we extract
+    the full address (href) and an internal identifier (spid).
     """
     out: Dict[str, Dict[str, Optional[str]]] = {}
     soup = BeautifulSoup(html_content, "lxml")
@@ -208,7 +191,7 @@ def fuzzy_match_name(target: str, candidates: List[str], threshold: float = 0.85
 
 
 def main() -> None:
-    # 1) Seite laden (using cached file for testing)
+    # 1) load site (using cached file for testing)
     cached_file = "/Users/lucah/Library/CloudStorage/OneDrive-FreigegebeneBibliotheken–UniversitaetSt.Gallen/CS_Gruppe6.3_2025 - UnisportAI/.scraper/Universität St.Gallen | Über uns | Services | Unisport St.Gallen.html"
     
     if os.path.exists(cached_file):
@@ -232,7 +215,7 @@ def main() -> None:
     print(f"Sample keys (first 5): {list(loc_links.keys())[:5]}")
     print("=================\n")
 
-    # 2) Informationen zusammenbauen
+    # 2) Assemble information
     merged: List[Dict[str, object]] = []
     seen_names = set()
     fuzzy_matches = []
@@ -339,5 +322,5 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# Hinweis (Academic Integrity): Bei der Erstellung dieser Datei wurde das Tool "Cursor"
-# unterstützend verwendet.
+# Note (Academic Integrity): The tool "Cursor" was used as a supporting aid
+# in the creation of this file.

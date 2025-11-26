@@ -1,6 +1,23 @@
-"""
-KNN-based Sport Recommendation System (MACHINE LEARNING)
-Uses K-Nearest Neighbors to find similar sports based on features
+"""ml_knn_recommender
+---------------------------------
+K-Nearest Neighbors based sport recommender utilities.
+
+This module provides a small KNN-based recommender that loads
+feature vectors for sports from a Supabase view named
+``ml_training_data``, trains a nearest-neighbor index and exposes
+utility methods to obtain human-readable sport recommendations
+for a given user preferences vector.
+
+Notes:
+- The KNN model uses cosine distance and a ``StandardScaler`` to
+    normalize features before computing similarities.
+- The code is intentionally lightweight — the primary goal is to
+    return nearest neighbors (feature-similar sports) rather than
+    train a large classification model.
+
+The main class is :class:`KNNSportRecommender` which exposes
+``load_and_train()``, ``get_recommendations()`` and model persistence
+helpers.
 """
 import pandas as pd
 import numpy as np
@@ -52,7 +69,15 @@ class KNNSportRecommender:
         self.is_fitted = False
     
     def load_and_train(self):
-        """Load sports data and train the KNN model"""
+        """Load features from Supabase and train the internal KNN.
+
+        The method queries the Supabase view ``ml_training_data`` and
+        expects the view to contain one row per sport with the numeric
+        feature columns defined in :data:`FEATURE_COLUMNS`.
+
+        Raises:
+            ValueError: If the view returns no data.
+        """
         print("Loading sports data from Supabase...")
         response = supabase.table("ml_training_data").select("*").execute()
         
@@ -115,7 +140,18 @@ class KNNSportRecommender:
         return recommendations
     
     def save_model(self, path: str = "knn_recommender.joblib"):
-        """Save the trained KNN model"""
+        """Persist the trained model and artifacts to disk.
+
+        Writes a joblib file containing the fitted KNN object, the
+        scaler, the training DataFrame and metadata required to reload
+        the recommender with :meth:`load_model`.
+
+        Args:
+            path: File path where the model bundle is saved.
+
+        Raises:
+            ValueError: If called before the model is trained.
+        """
         if not self.is_fitted:
             raise ValueError("Model not trained. Call load_and_train() first.")
         
@@ -130,7 +166,19 @@ class KNNSportRecommender:
     
     @staticmethod
     def load_model(path: str = "knn_recommender.joblib"):
-        """Load a saved KNN model"""
+        """Load a saved recommender bundle from disk.
+
+        This is a convenience loader that reconstructs a
+        :class:`KNNSportRecommender` instance from the joblib payload
+        created by :meth:`save_model`.
+
+        Args:
+            path: Path to the joblib file.
+
+        Returns:
+            KNNSportRecommender: A recommender instance marked as
+            fitted and ready to call :meth:`get_recommendations`.
+        """
         data = joblib.load(path)
         recommender = KNNSportRecommender.__new__(KNNSportRecommender)
         recommender.knn_model = data['knn_model']

@@ -1,5 +1,8 @@
-"""
-Rating-Funktionalität für Sportangebote und Trainer
+"""Rating widgets for sport offers and trainers.
+
+This module provides Streamlit UI helpers to render rating widgets for
+offers and trainers, read existing user ratings and submit updates via
+the user management layer.
 """
 import streamlit as st
 from data.user_management import (
@@ -15,7 +18,14 @@ from data.supabase_client import (
 )
 
 def render_sportangebot_rating_widget(offer_href: str):
-    """Rendert ein Rating-Widget für ein Sportangebot"""
+    """Render a Streamlit widget to view and submit an offer rating.
+
+    The widget shows the current user's existing rating (if any) and
+    allows submitting or updating the rating and an optional comment.
+
+    Args:
+        offer_href (str): Database identifier for the offer.
+    """
     from data.auth import is_logged_in
     if not is_logged_in():
         return None
@@ -53,7 +63,11 @@ def render_sportangebot_rating_widget(offer_href: str):
     return None
 
 def render_trainer_rating_widget(trainer_name: str):
-    """Rendert ein Rating-Widget für einen Trainer"""
+    """Render a Streamlit widget to view and submit a trainer rating.
+
+    Args:
+        trainer_name (str): Trainer display name used as the identifier.
+    """
     from data.auth import is_logged_in
     if not is_logged_in():
         return None

@@ -1,3 +1,16 @@
+"""Supabase data access layer for UnisportAI.
+
+This module centralizes database access operations used by the Streamlit
+application. It exposes convenience functions for loading offers, events,
+user data, ratings and social/friend operations. Most read functions use
+``st.cache_data`` or ``st.cache_resource`` to reduce repeated network
+calls and improve UI responsiveness.
+
+Notes:
+- Functions must avoid side effects beyond database reads/writes.
+- Caching decorators are tuned for typical UI patterns (short TTLs).
+"""
+
 import streamlit as st
 import json
 from datetime import datetime

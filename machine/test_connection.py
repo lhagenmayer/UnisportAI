@@ -1,3 +1,13 @@
+"""test_connection
+------------------
+Small CLI script to verify Supabase connectivity and the presence
+of the ``ml_training_data`` view used by the project's ML
+components.
+
+Run this script when you need to confirm that credentials in the
+local ``.env`` file are correct and the Supabase view returns data.
+"""
+
 import pandas as pd
 import os
 from dotenv import load_dotenv
