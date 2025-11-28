@@ -21,7 +21,7 @@ FEATURE_COLUMNS = [
 MODEL_PATH = Path(__file__).resolve().parents[1] / "machine" / "knn_recommender.joblib"
 
 
-@st.cache_resource(ttl=300)  # Cache for 5 minutes
+@st.cache_resource
 def load_knn_model():
     """Load the trained KNN model (cached for performance)"""
     if not MODEL_PATH.exists():
@@ -144,31 +144,3 @@ def get_ml_recommendations(selected_focus, selected_intensity, selected_setting,
             break
     
     return recommendations
-
-
-def get_recommendations_from_sidebar():
-    """
-    Get ML recommendations based on current sidebar filter state
-    This function bridges the sidebar filters with the ML model
-    
-    Returns:
-        List of recommendation dicts with sport, match_score, and item
-    """
-    from data.state_manager import get_filter_state
-    
-    # Get current filter state from sidebar
-    selected_focus = get_filter_state('focus', [])
-    selected_intensity = get_filter_state('intensity', [])
-    selected_setting = get_filter_state('setting', [])
-    
-    # Only generate recommendations if user has selected some filters
-    if not (selected_focus or selected_intensity or selected_setting):
-        return []
-    
-    return get_ml_recommendations(
-        selected_focus=selected_focus,
-        selected_intensity=selected_intensity,
-        selected_setting=selected_setting,
-        min_match_score=70,  # Lower threshold for sidebar recommendations
-        max_results=5  # Fewer results for sidebar display
-    )

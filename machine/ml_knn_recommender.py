@@ -87,6 +87,16 @@ class KNNSportRecommender:
         self.sports_df = pd.DataFrame(response.data)  # Convert raw JSON response from Supabase into structured pandas DataFrame for easy data manipulation
         print(f"Loaded {len(self.sports_df)} sports")  # Display count of sports loaded to give user feedback on dataset size
         
+        # Filter out entries with all features = 0 (like Schliessfachvermietung)
+        feature_sums = self.sports_df[FEATURE_COLUMNS].fillna(0).sum(axis=1)
+        valid_sports_mask = feature_sums > 0
+        
+        if not valid_sports_mask.all():
+            invalid_sports = self.sports_df[~valid_sports_mask]['Angebot'].tolist()
+            print(f"⚠️  Filtering out {len(invalid_sports)} sports with no features: {invalid_sports}")
+            self.sports_df = self.sports_df[valid_sports_mask].reset_index(drop=True)
+            print(f"✅ Using {len(self.sports_df)} valid sports for training")
+        
         # Extract features and handle missing values (convert categorical data to numerical format for ML algorithm)
         X = self.sports_df[FEATURE_COLUMNS].values  # Extract only the 13 feature columns and convert to NumPy array format required by scikit-learn
         

@@ -217,99 +217,11 @@ else:
 # ML-based recommendations section: uses the ML integration to suggest
 # offers based on the user's state and current filtered results.
 st.markdown("---")
-st.subheader("🤖 AI-Powered Recommendations")
-
-from data.ml_integration import get_ml_recommendations
-
-# Get current filter state for AI recommendations
-selected_focus_ai = get_filter_state('focus', [])
-selected_intensity_ai = get_filter_state('intensity', [])
-selected_setting_ai = get_filter_state('setting', [])
-
-# Check if user has selected any filters
-has_filters = bool(selected_focus_ai or selected_intensity_ai or selected_setting_ai)
-
-if not has_filters:
-    st.info("💡 **Select some filters in the sidebar to get AI-powered sport recommendations!**")
-    st.write("The AI will analyze your preferences and suggest sports that match your interests.")
-else:
-    # User controls for ML recommendations
-    with st.expander("🎛️ AI Settings", expanded=False):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            min_match = st.slider(
-                "Minimum Match %",
-                min_value=50,
-                max_value=100,
-                value=75,
-                step=5,
-                help="Only show sports with at least this match percentage"
-            )
-        
-        with col2:
-            max_results = st.slider(
-                "Max Results",
-                min_value=3,
-                max_value=20,
-                value=8,
-                step=1,
-                help="Maximum number of AI recommendations"
-            )
-    
-    # Get sports to exclude (already shown in main results)
-    exclude_names = [offer.get('name', '') for offer in offers]
-    
-    # Get ML recommendations
-    with st.spinner("🤖 AI is analyzing your preferences..."):
-        ml_recommendations = get_ml_recommendations(
-            selected_focus=selected_focus_ai,
-            selected_intensity=selected_intensity_ai,
-            selected_setting=selected_setting_ai,
-            min_match_score=min_match,
-            max_results=max_results,
-            exclude_sports=exclude_names
-        )
-    
-    # Display results
-    if ml_recommendations:
-        st.success(f"✨ Found {len(ml_recommendations)} AI recommendations based on your preferences!")
-        
-        # Display recommendations in a nice grid
-        cols = st.columns(2)
-        for i, rec in enumerate(ml_recommendations):
-            with cols[i % 2]:
-                with st.container():
-                    # Header with sport name and match score
-                    col_name, col_score = st.columns([3, 1])
-                    with col_name:
-                        st.markdown(f"**🏃 {rec['sport']}**")
-                    with col_score:
-                        score = rec['match_score']
-                        if score >= 90:
-                            st.markdown(f"🟢 **{score}%**")
-                        elif score >= 75:
-                            st.markdown(f"🟡 **{score}%**")
-                        else:
-                            st.markdown(f"🟠 **{score}%**")
-                    
-                    # Try to find matching offer for "View Details" button
-                    matching_offer = None
-                    for offer in offers_data:
-                        if offer.get('name', '').lower() == rec['sport'].lower():
-                            matching_offer = offer
-                            break
-                    
-                    if matching_offer:
-                        if st.button("View Details", key=f"ai_view_{rec['sport']}", use_container_width=True, type="secondary"):
-                            set_selected_offer(matching_offer)
-                            st.switch_page("pages/details.py")
-                    else:
-                        st.caption("💭 AI suggestion - details may not be available")
-                    
-                    st.divider()
-    else:
-        st.info(f"🤖 No sports found with ≥{min_match}% match. Try lowering the threshold or adjusting your filters.")
+st.subheader("✨ You Might Also Like")
+render_ml_recommendations_section(
+    sports_data=offers_data,
+    current_filter_results=offers  # Exclude already shown sports
+)
 
 # Empty state footer
 if len(offers) == 0:
