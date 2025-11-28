@@ -4,6 +4,10 @@ Sidebar Components for UnisportAI
 - User info section that appears on all pages
 """
 import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
 from datetime import datetime, time
 from typing import Optional, List, Dict, Any
 from data.state_manager import (
@@ -450,25 +454,177 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
     if ml_recommendations:
         st.success(f"✨ Found {len(ml_recommendations)} AI recommendations for you!")
         
-        # Display each recommendation
-        for i, rec in enumerate(ml_recommendations, 1):
-            with st.container():
-                col1, col2 = st.columns([4, 1])
+        # Visualization options
+        viz_tab1, viz_tab2, viz_tab3 = st.tabs(["📊 Match Scores", "🎯 Feature Analysis", "📋 Details"])
+        
+        with viz_tab1:
+            # Match Score Bar Chart
+            sports_names = [rec['sport'] for rec in ml_recommendations]
+            match_scores = [rec['match_score'] for rec in ml_recommendations]
+            
+            # Create color coding based on score
+            colors = ['#00CC96' if score >= 90 else '#FFA15A' if score >= 75 else '#FF6B6B' for score in match_scores]
+            
+            fig_bar = go.Figure(data=[
+                go.Bar(
+                    x=match_scores,
+                    y=sports_names,
+                    orientation='h',
+                    marker_color=colors,
+                    text=[f"{score}%" for score in match_scores],
+                    textposition='inside',
+                    textfont=dict(color='white', size=12, family='Arial Black')
+                )
+            ])
+            
+            fig_bar.update_layout(
+                title=dict(
+                    text="🤖 AI Match Scores - Your Perfect Sports",
+                    x=0.5,
+                    font=dict(size=16, family='Arial')
+                ),
+                xaxis_title="Match Score (%)",
+                yaxis_title="Recommended Sports",
+                xaxis=dict(range=[0, 100]),
+                height=max(400, len(ml_recommendations) * 40),
+                margin=dict(l=20, r=20, t=60, b=20),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
+            
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with viz_tab2:
+            # Feature Analysis - Show what makes these sports match
+            if ml_recommendations:
+                st.subheader("🎯 Why These Sports Match Your Preferences")
                 
-                with col1:
-                    st.markdown(f"**{i}. {rec['sport']}**")
-                    # You can add more details from rec['item'] here if needed
+                # Get user preferences for comparison
+                from data.ml_integration import build_user_preferences_from_filters, FEATURE_COLUMNS
+                user_prefs = build_user_preferences_from_filters(selected_focus, selected_intensity, selected_setting)
                 
-                with col2:
-                    # Show match score with color coding
-                    score = rec['match_score']
-                    if score >= 90:
-                        st.markdown(f"🟢 **{score}%**")
-                    elif score >= 75:
-                        st.markdown(f"🟡 **{score}%**")
+                # Select sport for detailed analysis
+                selected_sport_idx = st.selectbox(
+                    "Choose sport to analyze:",
+                    range(len(ml_recommendations)),
+                    format_func=lambda x: f"{ml_recommendations[x]['sport']} ({ml_recommendations[x]['match_score']}%)",
+                    key="sport_analysis_selector"
+                )
+                
+                selected_sport_data = ml_recommendations[selected_sport_idx]
+                sport_item = selected_sport_data['item']
+                
+                # Create radar chart comparing user preferences vs sport characteristics
+                feature_labels = ['Balance', 'Flexibility', 'Coordination', 'Relaxation', 
+                                 'Strength', 'Endurance', 'Longevity', 'Intensity']
+                
+                # Get feature values (first 8 features for radar chart)
+                user_values = [user_prefs.get(col, 0) for col in FEATURE_COLUMNS[:8]]
+                sport_values = []
+                
+                # Map sport features to values
+                for col in FEATURE_COLUMNS[:8]:
+                    if col == 'intensity':
+                        intensity_map = {'low': 0.33, 'moderate': 0.67, 'high': 1.0}
+                        sport_values.append(intensity_map.get(sport_item.get('intensity', '').lower(), 0.5))
                     else:
-                        st.markdown(f"🟠 **{score}%**")
+                        sport_values.append(1.0 if sport_item.get(col, 0) == 1 else 0.0)
                 
-                st.divider()
+                # Create radar chart
+                fig_radar = go.Figure()
+                
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=user_values,
+                    theta=feature_labels,
+                    fill='toself',
+                    name='Your Preferences',
+                    fillcolor='rgba(0, 204, 150, 0.3)',
+                    line=dict(color='rgba(0, 204, 150, 0.8)', width=3)
+                ))
+                
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=sport_values,
+                    theta=feature_labels,
+                    fill='toself',
+                    name=f'{selected_sport_data["sport"]}',
+                    fillcolor='rgba(255, 161, 90, 0.3)',
+                    line=dict(color='rgba(255, 161, 90, 0.8)', width=3)
+                ))
+                
+                fig_radar.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 1],
+                            tickvals=[0, 0.5, 1],
+                            ticktext=['Low', 'Medium', 'High']
+                        )
+                    ),
+                    showlegend=True,
+                    title=dict(
+                        text=f"Feature Comparison: You vs {selected_sport_data['sport']}",
+                        x=0.5,
+                        font=dict(size=16)
+                    ),
+                    height=500
+                )
+                
+                st.plotly_chart(fig_radar, use_container_width=True)
+                
+                # Setting preferences comparison
+                st.subheader("🎮 Activity Settings Match")
+                
+                setting_features = ['team', 'fun', 'duo', 'solo', 'competitive']
+                user_settings = [user_prefs.get(f'setting_{f}', 0) for f in setting_features]
+                sport_settings = [sport_item.get(f'setting_{f}', 0) for f in setting_features]
+                
+                settings_df = pd.DataFrame({
+                    'Setting': [s.capitalize() for s in setting_features],
+                    'Your Preference': user_settings,
+                    selected_sport_data['sport']: sport_settings
+                })
+                
+                fig_settings = px.bar(
+                    settings_df.melt(id_vars=['Setting'], var_name='Source', value_name='Value'),
+                    x='Setting', y='Value', color='Source',
+                    title="Activity Setting Preferences",
+                    color_discrete_map={
+                        'Your Preference': '#00CC96',
+                        selected_sport_data['sport']: '#FFA15A'
+                    }
+                )
+                
+                fig_settings.update_layout(
+                    height=300,
+                    yaxis=dict(range=[0, 1.1], tickvals=[0, 1], ticktext=['No', 'Yes'])
+                )
+                
+                st.plotly_chart(fig_settings, use_container_width=True)
+                
+        with viz_tab3:
+            # Detailed list view (original format)
+            for i, rec in enumerate(ml_recommendations, 1):
+                with st.container():
+                    col1, col2 = st.columns([4, 1])
+                    
+                    with col1:
+                        st.markdown(f"**{i}. {rec['sport']}**")
+                        # Add intensity and focus info
+                        item = rec['item']
+                        intensity = item.get('intensity', '').capitalize()
+                        if intensity:
+                            st.caption(f"Intensity: {intensity}")
+                    
+                    with col2:
+                        # Show match score with color coding
+                        score = rec['match_score']
+                        if score >= 90:
+                            st.markdown(f"🟢 **{score}%**")
+                        elif score >= 75:
+                            st.markdown(f"🟡 **{score}%**")
+                        else:
+                            st.markdown(f"🟠 **{score}%**")
+                    
+                    st.divider()
     else:
         st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")

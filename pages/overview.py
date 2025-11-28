@@ -218,6 +218,25 @@ else:
 # offers based on the user's state and current filtered results.
 st.markdown("---")
 st.subheader("✨ You Might Also Like")
+
+# Add quick insights before recommendations
+if selected_focus or selected_intensity or selected_setting:
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        active_filters = []
+        if selected_focus:
+            active_filters.extend([f"Focus: {', '.join(selected_focus)}"])
+        if selected_intensity:
+            active_filters.extend([f"Intensity: {', '.join(selected_intensity)}"])
+        if selected_setting:
+            active_filters.extend([f"Setting: {', '.join(selected_setting)}"])
+        
+        st.info(f"🎯 **Active AI filters:** {' | '.join(active_filters)}")
+    
+    with col2:
+        if st.button("📊 View ML Analytics", key="ml_analytics_button", use_container_width=True):
+            st.switch_page("pages/ml_analytics.py")
+
 render_ml_recommendations_section(
     sports_data=offers_data,
     current_filter_results=offers  # Exclude already shown sports

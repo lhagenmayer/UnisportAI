@@ -93,9 +93,9 @@ class KNNSportRecommender:
         
         if not valid_sports_mask.all():
             invalid_sports = self.sports_df[~valid_sports_mask]['Angebot'].tolist()
-            print(f"⚠️  Filtering out {len(invalid_sports)} sports with no features: {invalid_sports}")
+            print(f"Filtering out {len(invalid_sports)} sports with no features: {invalid_sports}")
             self.sports_df = self.sports_df[valid_sports_mask].reset_index(drop=True)
-            print(f"✅ Using {len(self.sports_df)} valid sports for training")
+            print(f"Using {len(self.sports_df)} valid sports for training")
         
         # Extract features and handle missing values (convert categorical data to numerical format for ML algorithm)
         X = self.sports_df[FEATURE_COLUMNS].values  # Extract only the 13 feature columns and convert to NumPy array format required by scikit-learn
@@ -112,7 +112,7 @@ class KNNSportRecommender:
         self.knn_model.fit(X_scaled)  # Build the KNN search index from scaled training data - algorithm learns the feature space structure for fast similarity searches
         self.is_fitted = True  # Set flag indicating model is now trained and ready for making recommendations
         
-        print(f"✅ KNN model trained with {len(self.sports_df)} sports")
+        print(f"KNN model trained with {len(self.sports_df)} sports")
     
     def get_recommendations(self, user_preferences: dict, top_n: int = 5):
         """
@@ -176,7 +176,7 @@ class KNNSportRecommender:
             'feature_columns': FEATURE_COLUMNS,  # Ordered list of feature names (ensures consistent feature ordering when loading model)
             'n_neighbors': self.n_neighbors  # Model configuration parameter (preserves the k-value used during training)
         }, path)  # Write the complete model bundle to specified file path as compressed binary data
-        print(f"✅ Saved KNN model to {path}")  # Confirm successful model persistence to user
+        print(f"Saved KNN model to {path}")  # Confirm successful model persistence to user
     
     @staticmethod
     def load_model(path: str = "knn_recommender.joblib"):
