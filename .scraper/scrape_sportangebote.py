@@ -401,13 +401,13 @@ def extract_course_dates(kursnr: str, zeitraum_href: str) -> List[Dict[str, str]
 
 
 def apply_overrides(supabase) -> None:
-        """Apply manual overrides from ``missing_overrides.json`` to the DB.
+    """Apply manual overrides from ``missing_overrides.json`` to the DB.
 
-        The overrides JSON contains per-table entries that specify an
-        identifier and fields to upsert. This helper upserts each provided
-        override item into the corresponding table using the appropriate
-        conflict key.
-        """
+    The overrides JSON contains per-table entries that specify an
+    identifier and fields to upsert. This helper upserts each provided
+    override item into the corresponding table using the appropriate
+    conflict key.
+    """
     overrides_path = os.path.join(os.path.dirname(__file__), "missing_overrides.json")
     if not os.path.exists(overrides_path):
         return
