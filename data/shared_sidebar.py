@@ -514,8 +514,8 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                     tags.append(f"🎯 {tag.capitalize()}")
             
             # Add intensity
-            intensity = item.get('intensity', '')
-            if intensity:
+            intensity = item.get('intensity', '') or ''
+            if intensity and isinstance(intensity, str):
                 tags.append(f"⚡ {intensity.capitalize()} Intensity")
             
             # Add setting tags
@@ -667,8 +667,8 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                             tags_display.append(f"`🎯 {tag.capitalize()}`")
                     
                     # Intensity tag
-                    intensity = item.get('intensity', '')
-                    if intensity:
+                    intensity = item.get('intensity', '') or ''
+                    if intensity and isinstance(intensity, str):
                         tags_display.append(f"`⚡ {intensity.capitalize()}`")
                     
                     # Setting tags
