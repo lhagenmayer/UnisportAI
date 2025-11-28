@@ -38,11 +38,10 @@ except Exception as e:
 overview_page = st.Page("pages/overview.py", title="Sports Overview", icon="🎯")
 details_page = st.Page("pages/details.py", title="Course Dates", icon="📅")
 athletes_page = st.Page("pages/athletes.py", title="Athletes", icon="🤝")
-ml_analytics_page = st.Page("pages/ml_analytics.py", title="ML Analytics", icon="🤖")
 profile_page = st.Page("pages/profile.py", title="My Profile", icon="⚙️")
 
 # Set up navigation
-pages = [overview_page, details_page, athletes_page, ml_analytics_page, profile_page]
+pages = [overview_page, details_page, athletes_page, profile_page]
 pg = st.navigation(pages)
 
 # Run the selected page
