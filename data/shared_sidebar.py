@@ -716,17 +716,6 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                         st.caption("✨ Additional features beyond your selection")
                     else:
                         st.caption("🎯 Perfect match - no additional features")
-                    
-                    # Debug: Show actual data for verification
-                    with st.expander("🔍 Debug: Actual sport data", expanded=False):
-                        st.json({
-                            "intensity": item.get('intensity'),
-                            "selected_intensity": selected_intensity,
-                            "focus_tags": {tag: item.get(tag, 0) for tag in ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']},
-                            "selected_focus": selected_focus,
-                            "setting_tags": {tag.replace('setting_', ''): item.get(tag, 0) for tag in ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']},
-                            "selected_setting": selected_setting
-                        })
                 
                 with col_score:
                     score = rec['match_score']
