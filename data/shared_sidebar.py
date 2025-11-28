@@ -610,7 +610,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         ml_chart_figure.add_vline(
             x=avg_score,
             line=dict(color="red", width=3, dash="solid"),
-            annotation_text=f"📊 Avg: {avg_score:.1f}%",
+            annotation_text=f"Avg: {avg_score:.1f}%",
             annotation_position="top",
             annotation=dict(
                 font=dict(size=12, color="red"),
@@ -623,7 +623,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         # Add text annotations for score ranges
         ml_chart_figure.add_annotation(
             x=95, y=len(sports_names) * 0.95,
-            text="🎯 Perfect Match",
+            text="Perfect Match",
             showarrow=False,
             font=dict(size=10, color='green'),
             bgcolor="rgba(76, 175, 80, 0.2)",
@@ -634,7 +634,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         st.plotly_chart(ml_chart_figure, use_container_width=True)
         
         # Show Top 3 Recommendations below the chart
-        st.subheader("🏆 Top 3 AI Recommendations")
+        st.subheader("Top 3 AI Recommendations")
         
         top_3_recommendations = ml_recommendations[:3]
         for rank_index, recommendation in enumerate(top_3_recommendations, 1):
