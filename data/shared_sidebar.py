@@ -510,8 +510,9 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                 with col1:
                     st.markdown(f"**{i}. {rec['sport']}**")
                     # Add intensity and focus info
-                    item = rec['item']
-                    intensity = item.get('intensity', '').capitalize()
+                    item = rec.get('item', {})
+                    intensity_value = item.get('intensity', '') or ''
+                    intensity = intensity_value.capitalize() if intensity_value else ''
                     if intensity:
                         st.caption(f"Intensity: {intensity}")
                 
