@@ -501,6 +501,35 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         # Create a more sophisticated chart with multiple visual elements
         fig_fancy = go.Figure()
         
+        # Create hover text with sport tags
+        hover_texts = []
+        for rec in ml_recommendations:
+            item = rec.get('item', {})
+            tags = []
+            
+            # Collect focus tags
+            focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
+            for tag in focus_tags:
+                if item.get(tag, 0) == 1:
+                    tags.append(f"🎯 {tag.capitalize()}")
+            
+            # Add intensity
+            intensity = item.get('intensity', '')
+            if intensity:
+                tags.append(f"⚡ {intensity.capitalize()} Intensity")
+            
+            # Add setting tags
+            setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
+            for tag in setting_tags:
+                if item.get(tag, 0) == 1:
+                    setting_name = tag.replace('setting_', '')
+                    tags.append(f"🏃 {setting_name.capitalize()}")
+            
+            tags_text = "<br>".join(tags[:6]) if tags else "No tags available"  # Limit to 6 tags for readability
+            hover_texts.append(f"<b>{rec['sport']}</b><br>" +
+                              f"Match Score: <b>{rec['match_score']}%</b><br>" +
+                              f"<br><i>Sport Tags:</i><br>{tags_text}")
+        
         # Add bars with custom colors and effects
         fig_fancy.add_trace(go.Bar(
             y=[f"{name[:20]}{'...' if len(name) > 20 else ''}" for name in sports_names],
@@ -517,9 +546,8 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             text=[f"<b>{score}%</b>" for score in match_scores],
             textposition='inside',
             textfont=dict(color='white', size=13, family='Arial Black'),
-            hovertemplate="<b>%{y}</b><br>" +
-                         "Match Score: <b>%{x}%</b><br>" +
-                         "<i>AI Confidence Level</i><extra></extra>",
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
             name="AI Recommendations"
         ))
         
@@ -608,5 +636,66 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         )
         
         st.plotly_chart(fig_fancy, use_container_width=True)
+        
+        # Show Top 3 Recommendations below the chart
+        st.subheader("🏆 Top 3 AI Recommendations")
+        
+        top_3 = ml_recommendations[:3]
+        for i, rec in enumerate(top_3, 1):
+            item = rec.get('item', {})
+            
+            with st.container():
+                # Create columns for layout
+                col_rank, col_content, col_score = st.columns([0.5, 3, 1])
+                
+                with col_rank:
+                    # Medal emojis for top 3
+                    medals = ["🥇", "🥈", "🥉"]
+                    st.markdown(f"<div style='font-size: 2em; text-align: center;'>{medals[i-1]}</div>", 
+                               unsafe_allow_html=True)
+                
+                with col_content:
+                    st.markdown(f"**{rec['sport']}**")
+                    
+                    # Show tags as badges
+                    tags_display = []
+                    
+                    # Focus tags
+                    focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
+                    for tag in focus_tags:
+                        if item.get(tag, 0) == 1:
+                            tags_display.append(f"`🎯 {tag.capitalize()}`")
+                    
+                    # Intensity tag
+                    intensity = item.get('intensity', '')
+                    if intensity:
+                        tags_display.append(f"`⚡ {intensity.capitalize()}`")
+                    
+                    # Setting tags
+                    setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
+                    for tag in setting_tags:
+                        if item.get(tag, 0) == 1:
+                            setting_name = tag.replace('setting_', '')
+                            tags_display.append(f"`🏃 {setting_name.capitalize()}`")
+                    
+                    if tags_display:
+                        st.markdown(" ".join(tags_display))
+                    else:
+                        st.caption("No tags available")
+                
+                with col_score:
+                    score = rec['match_score']
+                    if score >= 90:
+                        st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>🟢<br><b>{score}%</b></div>", 
+                                   unsafe_allow_html=True)
+                    elif score >= 75:
+                        st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>🟡<br><b>{score}%</b></div>", 
+                                   unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>🟠<br><b>{score}%</b></div>", 
+                                   unsafe_allow_html=True)
+                
+                if i < len(top_3):  # Don't add divider after last item
+                    st.divider()
     else:
         st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")
