@@ -499,33 +499,107 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             showlegend=False
         )
         
-        st.plotly_chart(fig_simple, use_container_width=True)
+        # Create a fancy, interactive polar bar chart
+        fig_fancy = go.Figure()
         
-        # Detailed list view
-        st.subheader("📋 Detailed Recommendations")
-        for i, rec in enumerate(ml_recommendations, 1):
-            with st.container():
-                col1, col2 = st.columns([4, 1])
-                
-                with col1:
-                    st.markdown(f"**{i}. {rec['sport']}**")
-                    # Add intensity and focus info
-                    item = rec.get('item', {})
-                    intensity_value = item.get('intensity', '') or ''
-                    intensity = intensity_value.capitalize() if intensity_value else ''
-                    if intensity:
-                        st.caption(f"Intensity: {intensity}")
-                
-                with col2:
-                    # Show match score with color coding
-                    score = rec['match_score']
-                    if score >= 90:
-                        st.markdown(f"🟢 **{score}%**")
-                    elif score >= 75:
-                        st.markdown(f"🟡 **{score}%**")
-                    else:
-                        st.markdown(f"🟠 **{score}%**")
-                
-                st.divider()
+        # Add polar bar chart with gradient colors
+        colors = ['#FF6B6B', '#FFA726', '#FFEE58', '#66BB6A', '#42A5F5', '#AB47BC', '#FF7043', '#8D6E63']
+        
+        # Create a more sophisticated chart with multiple visual elements
+        fig_fancy = go.Figure()
+        
+        # Add bars with custom colors and effects
+        fig_fancy.add_trace(go.Bar(
+            y=[f"{name[:20]}{'...' if len(name) > 20 else ''}" for name in sports_names],
+            x=match_scores,
+            orientation='h',
+            marker=dict(
+                color=match_scores,
+                colorscale='Turbo',  # Beautiful color scale
+                cmin=50,
+                cmax=100,
+                line=dict(color='rgba(255,255,255,0.8)', width=2),
+                opacity=0.8
+            ),
+            text=[f"<b>{score}%</b>" for score in match_scores],
+            textposition='inside',
+            textfont=dict(color='white', size=13, family='Arial Black'),
+            hovertemplate="<b>%{y}</b><br>" +
+                         "Match Score: <b>%{x}%</b><br>" +
+                         "<i>AI Confidence Level</i><extra></extra>",
+            name="AI Recommendations"
+        ))
+        
+        # Add sparkle effect with scatter points
+        for i, (score, name) in enumerate(zip(match_scores, sports_names)):
+            if score >= 75:  # Only add sparkles for good matches
+                fig_fancy.add_trace(go.Scatter(
+                    x=[score + 2],
+                    y=[f"{name[:20]}{'...' if len(name) > 20 else ''}"],
+                    mode='markers',
+                    marker=dict(
+                        symbol='star',
+                        size=15 if score >= 90 else 12,
+                        color='gold' if score >= 90 else 'silver',
+                        line=dict(color='white', width=1)
+                    ),
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
+        
+        # Beautiful styling
+        fig_fancy.update_layout(
+            title=dict(
+                text="✨ AI Recommendation Confidence ✨",
+                x=0.5,
+                font=dict(size=18, family='Arial', color='#2E86AB')
+            ),
+            xaxis=dict(
+                title="Match Score (%)",
+                range=[0, 105],
+                gridcolor='rgba(200,200,200,0.3)',
+                showgrid=True,
+                tickfont=dict(size=12, color='#666')
+            ),
+            yaxis=dict(
+                title="🏃 Recommended Sports",
+                tickfont=dict(size=11, color='#666')
+            ),
+            height=max(350, len(ml_recommendations) * 45),
+            margin=dict(l=30, r=30, t=70, b=30),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(248,249,250,0.7)',
+            showlegend=False,
+            font=dict(family='Arial'),
+            # Add subtle animation
+            transition=dict(duration=500, easing="cubic-in-out")
+        )
+        
+        # Add range annotations for visual guidance
+        fig_fancy.add_vrect(
+            x0=90, x1=100,
+            fillcolor="rgba(76, 175, 80, 0.1)",
+            layer="below",
+            line_width=0,
+        )
+        fig_fancy.add_vrect(
+            x0=75, x1=90,
+            fillcolor="rgba(255, 193, 7, 0.1)",
+            layer="below",
+            line_width=0,
+        )
+        
+        # Add text annotations for score ranges
+        fig_fancy.add_annotation(
+            x=95, y=len(sports_names) * 0.95,
+            text="🎯 Perfect Match",
+            showarrow=False,
+            font=dict(size=10, color='green'),
+            bgcolor="rgba(76, 175, 80, 0.2)",
+            bordercolor="green",
+            borderwidth=1
+        )
+        
+        st.plotly_chart(fig_fancy, use_container_width=True)
     else:
         st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")
