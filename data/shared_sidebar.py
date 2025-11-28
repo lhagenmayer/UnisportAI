@@ -459,14 +459,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         max_score = max(rec['match_score'] for rec in ml_recommendations)
         
         # Model quality indicators
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("🎯 Best Match", f"{max_score:.1f}%")
-        with col2:
-            st.metric("📊 Avg Quality", f"{avg_score:.1f}%")
-        with col3:
-            quality_rating = "Excellent" if avg_score >= 85 else "Good" if avg_score >= 70 else "Fair"
-            st.metric("🤖 Model Performance", quality_rating)
+        st.metric("🎯 Best Match", f"{max_score:.1f}%")
         
         # Simple bar chart showing match scores
         sports_names = [rec['sport'] for rec in ml_recommendations]
@@ -587,6 +580,20 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             fillcolor="rgba(255, 193, 7, 0.1)",
             layer="below",
             line_width=0,
+        )
+        
+        # Add red line for average quality
+        fig_fancy.add_vline(
+            x=avg_score,
+            line=dict(color="red", width=3, dash="solid"),
+            annotation_text=f"📊 Avg: {avg_score:.1f}%",
+            annotation_position="top",
+            annotation=dict(
+                font=dict(size=12, color="red"),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="red",
+                borderwidth=1
+            )
         )
         
         # Add text annotations for score ranges
