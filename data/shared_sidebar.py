@@ -492,71 +492,65 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             showlegend=False
         )
         
-        # Create a fancy, interactive polar bar chart
-        fig_fancy = go.Figure()
+        # Create interactive ML recommendations bar chart
+        ml_chart_figure = go.Figure()
         
-        # Add polar bar chart with gradient colors
-        colors = ['#FF6B6B', '#FFA726', '#FFEE58', '#66BB6A', '#42A5F5', '#AB47BC', '#FF7043', '#8D6E63']
-        
-        # Create a more sophisticated chart with multiple visual elements
-        fig_fancy = go.Figure()
-        
-        # Create hover text with sport tags (only show NON-selected tags)
-        hover_texts = []
-        for rec in ml_recommendations:
-            item = rec.get('item', {})
-            additional_tags = []
+        # Create hover tooltips with additional sport features (only show NON-selected tags)
+        recommendation_hover_tooltips = []
+        for recommendation in ml_recommendations:
+            sport_item = recommendation.get('item', {})
+            additional_feature_tags = []
             
             # Show NON-selected focus tags that this sport has
-            focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
-            for tag in focus_tags:
-                if item.get(tag, 0) == 1 and tag not in selected_focus:
-                    additional_tags.append(f"🎯 {tag.capitalize()}")
+            focus_tag_names = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
+            for focus_tag in focus_tag_names:
+                if sport_item.get(focus_tag, 0) == 1 and focus_tag not in selected_focus:
+                    additional_feature_tags.append(f"🎯 {focus_tag.capitalize()}")
             
             # Show intensity if different from selected (handle both numeric and string values)
-            intensity = item.get('intensity')
-            if intensity is not None:
+            sport_intensity = sport_item.get('intensity')
+            if sport_intensity is not None:
                 # Convert numeric intensity to string
-                if isinstance(intensity, (int, float)):
-                    if intensity <= 0.4:
-                        intensity_str = "low"
-                    elif intensity <= 0.7:
-                        intensity_str = "moderate"
+                if isinstance(sport_intensity, (int, float)):
+                    if sport_intensity <= 0.4:
+                        intensity_level = "low"
+                    elif sport_intensity <= 0.7:
+                        intensity_level = "moderate"
                     else:
-                        intensity_str = "high"
+                        intensity_level = "high"
                 else:
-                    intensity_str = str(intensity).lower()
+                    intensity_level = str(sport_intensity).lower()
                 
                 # Check if this intensity is different from selected
-                if not selected_intensity or intensity_str not in [i.lower() for i in selected_intensity]:
-                    additional_tags.append(f"⚡ {intensity_str.capitalize()} Intensity")
+                if not selected_intensity or intensity_level not in [i.lower() for i in selected_intensity]:
+                    additional_feature_tags.append(f"⚡ {intensity_level.capitalize()} Intensity")
             
             # Show NON-selected setting tags that this sport has
-            setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
-            for tag in setting_tags:
-                if item.get(tag, 0) == 1:
-                    setting_name = tag.replace('setting_', '')
-                    if setting_name not in selected_setting:
-                        additional_tags.append(f"🏃 {setting_name.capitalize()}")
+            setting_tag_names = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
+            for setting_tag in setting_tag_names:
+                if sport_item.get(setting_tag, 0) == 1:
+                    setting_display_name = setting_tag.replace('setting_', '')
+                    if setting_display_name not in selected_setting:
+                        additional_feature_tags.append(f"🏃 {setting_display_name.capitalize()}")
             
-            if additional_tags:
-                tags_text = "<br>".join(additional_tags[:6])  # Limit to 6 tags for readability
-                hover_texts.append(f"<b>{rec['sport']}</b><br>" +
-                                  f"Match Score: <b>{rec['match_score']}%</b><br>" +
-                                  f"<br><i>Additional Features:</i><br>{tags_text}")
+            if additional_feature_tags:
+                tooltip_tags_text = "<br>".join(additional_feature_tags[:6])  # Limit to 6 tags for readability
+                recommendation_hover_tooltips.append(f"<b>{recommendation['sport']}</b><br>" +
+                                  f"Match Score: <b>{recommendation['match_score']}%</b><br>" +
+                                  f"<br><i>Additional Features:</i><br>{tooltip_tags_text}")
             else:
-                hover_texts.append(f"<b>{rec['sport']}</b><br>" +
-                                  f"Match Score: <b>{rec['match_score']}%</b><br>" +
+                recommendation_hover_tooltips.append(f"<b>{recommendation['sport']}</b><br>" +
+                                  f"Match Score: <b>{recommendation['match_score']}%</b><br>" +
                                   f"<br><i>No additional features beyond your selection</i>")
         
-        # Add bars with custom colors and effects
-        fig_fancy.add_trace(go.Bar(
-            y=[f"{name[:20]}{'...' if len(name) > 20 else ''}" for name in sports_names],
+        # Add horizontal bars with gradient colors based on match scores
+        ml_chart_figure.add_trace(go.Bar(
+            y=[f"{sport_name[:20]}{'...' if len(sport_name) > 20 else ''}" for sport_name in sports_names],
             x=match_scores,
             orientation='h',
             marker=dict(
                 color=match_scores,
-                colorscale='Turbo',  # Beautiful color scale
+                colorscale='Turbo',  # Beautiful gradient color scale
                 cmin=50,
                 cmax=100,
                 line=dict(color='rgba(255,255,255,0.8)', width=2),
@@ -566,29 +560,29 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             textposition='inside',
             textfont=dict(color='white', size=13, family='Arial Black'),
             hovertemplate="%{customdata}<extra></extra>",
-            customdata=hover_texts,
+            customdata=recommendation_hover_tooltips,
             name="AI Recommendations"
         ))
         
-        # Add sparkle effect with scatter points
-        for i, (score, name) in enumerate(zip(match_scores, sports_names)):
-            if score >= 75:  # Only add sparkles for good matches
-                fig_fancy.add_trace(go.Scatter(
-                    x=[score + 2],
-                    y=[f"{name[:20]}{'...' if len(name) > 20 else ''}"],
+        # Add star markers for high-confidence recommendations
+        for index, (match_score, sport_name) in enumerate(zip(match_scores, sports_names)):
+            if match_score >= 75:  # Only add stars for good matches (75%+)
+                ml_chart_figure.add_trace(go.Scatter(
+                    x=[match_score + 2],
+                    y=[f"{sport_name[:20]}{'...' if len(sport_name) > 20 else ''}"],
                     mode='markers',
                     marker=dict(
                         symbol='star',
-                        size=15 if score >= 90 else 12,
-                        color='gold' if score >= 90 else 'silver',
+                        size=15 if match_score >= 90 else 12,
+                        color='gold' if match_score >= 90 else 'silver',
                         line=dict(color='white', width=1)
                     ),
                     showlegend=False,
                     hoverinfo='skip'
                 ))
         
-        # Beautiful styling
-        fig_fancy.update_layout(
+        # Configure chart layout and styling
+        ml_chart_figure.update_layout(
             title=dict(
                 text="✨ AI Recommendation Confidence ✨",
                 x=0.5,
@@ -615,14 +609,14 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             transition=dict(duration=500, easing="cubic-in-out")
         )
         
-        # Add range annotations for visual guidance
-        fig_fancy.add_vrect(
+        # Add visual range indicators for score quality zones
+        ml_chart_figure.add_vrect(
             x0=90, x1=100,
             fillcolor="rgba(76, 175, 80, 0.1)",
             layer="below",
             line_width=0,
         )
-        fig_fancy.add_vrect(
+        ml_chart_figure.add_vrect(
             x0=75, x1=90,
             fillcolor="rgba(255, 193, 7, 0.1)",
             layer="below",
@@ -630,7 +624,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         )
         
         # Add red line for average quality
-        fig_fancy.add_vline(
+        ml_chart_figure.add_vline(
             x=avg_score,
             line=dict(color="red", width=3, dash="solid"),
             annotation_text=f"📊 Avg: {avg_score:.1f}%",
@@ -644,7 +638,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         )
         
         # Add text annotations for score ranges
-        fig_fancy.add_annotation(
+        ml_chart_figure.add_annotation(
             x=95, y=len(sports_names) * 0.95,
             text="🎯 Perfect Match",
             showarrow=False,
@@ -654,14 +648,14 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             borderwidth=1
         )
         
-        st.plotly_chart(fig_fancy, use_container_width=True)
+        st.plotly_chart(ml_chart_figure, use_container_width=True)
         
         # Show Top 3 Recommendations below the chart
         st.subheader("🏆 Top 3 AI Recommendations")
         
-        top_3 = ml_recommendations[:3]
-        for i, rec in enumerate(top_3, 1):
-            item = rec.get('item', {})
+        top_3_recommendations = ml_recommendations[:3]
+        for rank_index, recommendation in enumerate(top_3_recommendations, 1):
+            sport_item = recommendation.get('item', {})
             
             with st.container():
                 # Create columns for layout
@@ -670,11 +664,11 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                 with col_rank:
                     # Medal emojis for top 3
                     medals = ["🥇", "🥈", "🥉"]
-                    st.markdown(f"<div style='font-size: 2em; text-align: center;'>{medals[i-1]}</div>", 
+                    st.markdown(f"<div style='font-size: 2em; text-align: center;'>{medals[rank_index-1]}</div>", 
                                unsafe_allow_html=True)
                 
                 with col_content:
-                    st.markdown(f"**{rec['sport']}**")
+                    st.markdown(f"**{recommendation['sport']}**")
                     
                     # Show ONLY non-selected tags as additional features
                     additional_tags_display = []
@@ -682,11 +676,11 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                     # Show NON-selected focus tags that this sport has
                     focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
                     for tag in focus_tags:
-                        if item.get(tag, 0) == 1 and tag not in selected_focus:
+                        if sport_item.get(tag, 0) == 1 and tag not in selected_focus:
                             additional_tags_display.append(f"`➕ {tag.capitalize()}`")
                     
                     # Show intensity if different from selected (handle both numeric and string values)
-                    intensity = item.get('intensity')
+                    intensity = sport_item.get('intensity')
                     if intensity is not None:
                         # Convert numeric intensity to string
                         if isinstance(intensity, (int, float)):
@@ -706,7 +700,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                     # Show NON-selected setting tags that this sport has
                     setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
                     for tag in setting_tags:
-                        if item.get(tag, 0) == 1:
+                        if sport_item.get(tag, 0) == 1:
                             setting_name = tag.replace('setting_', '')
                             if setting_name not in selected_setting:
                                 additional_tags_display.append(f"`➕ {setting_name.capitalize()}`")
@@ -718,7 +712,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                         st.caption("🎯 Perfect match - no additional features")
                 
                 with col_score:
-                    score = rec['match_score']
+                    score = recommendation['match_score']
                     if score >= 90:
                         st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>🟢<br><b>{score}%</b></div>", 
                                    unsafe_allow_html=True)
@@ -729,7 +723,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                         st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>🟠<br><b>{score}%</b></div>", 
                                    unsafe_allow_html=True)
                 
-                if i < len(top_3):  # Don't add divider after last item
+                if rank_index < len(top_3_recommendations):  # Don't add divider after last item
                     st.divider()
     else:
         st.info(f"No sports found with ≥{min_match}% match. Try lowering the threshold.")
