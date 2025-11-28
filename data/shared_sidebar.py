@@ -564,27 +564,10 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
             name="AI Recommendations"
         ))
         
-        # Add star markers for high-confidence recommendations
-        for index, (match_score, sport_name) in enumerate(zip(match_scores, sports_names)):
-            if match_score >= 75:  # Only add stars for good matches (75%+)
-                ml_chart_figure.add_trace(go.Scatter(
-                    x=[match_score + 2],
-                    y=[f"{sport_name[:20]}{'...' if len(sport_name) > 20 else ''}"],
-                    mode='markers',
-                    marker=dict(
-                        symbol='star',
-                        size=15 if match_score >= 90 else 12,
-                        color='gold' if match_score >= 90 else 'silver',
-                        line=dict(color='white', width=1)
-                    ),
-                    showlegend=False,
-                    hoverinfo='skip'
-                ))
-        
         # Configure chart layout and styling
         ml_chart_figure.update_layout(
             title=dict(
-                text="✨ AI Recommendation Confidence ✨",
+                text="AI Recommendation Confidence",
                 x=0.5,
                 font=dict(size=18, family='Arial', color='#2E86AB')
             ),
@@ -596,7 +579,7 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                 tickfont=dict(size=12, color='#666')
             ),
             yaxis=dict(
-                title="🏃 Recommended Sports",
+                title="Recommended Sports",
                 tickfont=dict(size=11, color='#666')
             ),
             height=max(350, len(ml_recommendations) * 45),
