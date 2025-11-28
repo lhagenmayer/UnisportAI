@@ -501,34 +501,41 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
         # Create a more sophisticated chart with multiple visual elements
         fig_fancy = go.Figure()
         
-        # Create hover text with sport tags
+        # Create hover text with sport tags (only show NON-selected tags)
         hover_texts = []
         for rec in ml_recommendations:
             item = rec.get('item', {})
-            tags = []
+            additional_tags = []
             
-            # Collect focus tags
+            # Show NON-selected focus tags that this sport has
             focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
             for tag in focus_tags:
-                if item.get(tag, 0) == 1:
-                    tags.append(f"🎯 {tag.capitalize()}")
+                if item.get(tag, 0) == 1 and tag not in selected_focus:
+                    additional_tags.append(f"🎯 {tag.capitalize()}")
             
-            # Add intensity
+            # Show intensity if different from selected
             intensity = item.get('intensity', '') or ''
             if intensity and isinstance(intensity, str):
-                tags.append(f"⚡ {intensity.capitalize()} Intensity")
+                if not selected_intensity or intensity not in [i.lower() for i in selected_intensity]:
+                    additional_tags.append(f"⚡ {intensity.capitalize()} Intensity")
             
-            # Add setting tags
+            # Show NON-selected setting tags that this sport has
             setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
             for tag in setting_tags:
                 if item.get(tag, 0) == 1:
                     setting_name = tag.replace('setting_', '')
-                    tags.append(f"🏃 {setting_name.capitalize()}")
+                    if setting_name not in selected_setting:
+                        additional_tags.append(f"🏃 {setting_name.capitalize()}")
             
-            tags_text = "<br>".join(tags[:6]) if tags else "No tags available"  # Limit to 6 tags for readability
-            hover_texts.append(f"<b>{rec['sport']}</b><br>" +
-                              f"Match Score: <b>{rec['match_score']}%</b><br>" +
-                              f"<br><i>Sport Tags:</i><br>{tags_text}")
+            if additional_tags:
+                tags_text = "<br>".join(additional_tags[:6])  # Limit to 6 tags for readability
+                hover_texts.append(f"<b>{rec['sport']}</b><br>" +
+                                  f"Match Score: <b>{rec['match_score']}%</b><br>" +
+                                  f"<br><i>Additional Features:</i><br>{tags_text}")
+            else:
+                hover_texts.append(f"<b>{rec['sport']}</b><br>" +
+                                  f"Match Score: <b>{rec['match_score']}%</b><br>" +
+                                  f"<br><i>No additional features beyond your selection</i>")
         
         # Add bars with custom colors and effects
         fig_fancy.add_trace(go.Bar(
@@ -657,31 +664,34 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                 with col_content:
                     st.markdown(f"**{rec['sport']}**")
                     
-                    # Show tags as badges
-                    tags_display = []
+                    # Show ONLY non-selected tags as additional features
+                    additional_tags_display = []
                     
-                    # Focus tags
+                    # Show NON-selected focus tags that this sport has
                     focus_tags = ['balance', 'flexibility', 'coordination', 'relaxation', 'strength', 'endurance', 'longevity']
                     for tag in focus_tags:
-                        if item.get(tag, 0) == 1:
-                            tags_display.append(f"`🎯 {tag.capitalize()}`")
+                        if item.get(tag, 0) == 1 and tag not in selected_focus:
+                            additional_tags_display.append(f"`➕ {tag.capitalize()}`")
                     
-                    # Intensity tag
+                    # Show intensity if different from selected
                     intensity = item.get('intensity', '') or ''
                     if intensity and isinstance(intensity, str):
-                        tags_display.append(f"`⚡ {intensity.capitalize()}`")
+                        if not selected_intensity or intensity not in [i.lower() for i in selected_intensity]:
+                            additional_tags_display.append(f"`➕ {intensity.capitalize()}`")
                     
-                    # Setting tags
+                    # Show NON-selected setting tags that this sport has
                     setting_tags = ['setting_team', 'setting_fun', 'setting_duo', 'setting_solo', 'setting_competitive']
                     for tag in setting_tags:
                         if item.get(tag, 0) == 1:
                             setting_name = tag.replace('setting_', '')
-                            tags_display.append(f"`🏃 {setting_name.capitalize()}`")
+                            if setting_name not in selected_setting:
+                                additional_tags_display.append(f"`➕ {setting_name.capitalize()}`")
                     
-                    if tags_display:
-                        st.markdown(" ".join(tags_display))
+                    if additional_tags_display:
+                        st.markdown(" ".join(additional_tags_display))
+                        st.caption("✨ Additional features beyond your selection")
                     else:
-                        st.caption("No tags available")
+                        st.caption("🎯 Perfect match - no additional features")
                 
                 with col_score:
                     score = rec['match_score']
