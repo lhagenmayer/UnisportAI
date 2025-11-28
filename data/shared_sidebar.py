@@ -549,85 +549,55 @@ def render_ml_recommendations_section(sports_data=None, current_filter_results=N
                                   f"Match Score: <b>{rec['match_score']}%</b><br>" +
                                   f"<br><i>No additional features beyond your selection</i>")
         
-        # Create stunning alternative visualization
-        if len(ml_recommendations) <= 8:  # Use polar chart for fewer items
-            # Polar/Radar Chart (like a speedometer)
-            angles = [i * (360 / len(sports_names)) for i in range(len(sports_names))]
-            
-            fig_fancy.add_trace(go.Barpolar(
-                r=match_scores,
-                theta=angles,
-                width=[30] * len(sports_names),  # Bar width
-                marker=dict(
-                    color=match_scores,
-                    colorscale='RdYlGn',  # Red-Yellow-Green
-                    cmin=50,
-                    cmax=100,
-                    line=dict(color="white", width=2),
-                    opacity=0.85
-                ),
-                text=[f"<b>{name}</b><br>{score}%" for name, score in zip(sports_names, match_scores)],
-                hovertemplate="%{customdata}<extra></extra>",
-                customdata=hover_texts,
-                name="AI Match"
-            ))
-            
-            fig_fancy.update_layout(
-                polar=dict(
-                    radialaxis=dict(
-                        visible=True,
-                        range=[0, 100],
-                        tickvals=[50, 75, 100],
-                        ticktext=["50%", "75%", "100%"],
-                        tickcolor="gray",
-                        gridcolor="lightgray"
-                    ),
-                    angularaxis=dict(
-                        tickvals=angles,
-                        ticktext=[f"{name[:12]}..." if len(name) > 12 else name for name in sports_names],
-                        direction="clockwise",
-                        period=360,
-                        tickfont=dict(size=10)
-                    ),
-                    bgcolor="rgba(240,240,240,0.3)"
-                ),
-                showlegend=False,
-                title=dict(
-                    text="🎯 AI Recommendation Radar",
-                    x=0.5,
-                    font=dict(size=18, color='#2E86AB')
-                ),
-                height=550,
-                margin=dict(t=80, b=80, l=80, r=80)
-            )
-            
-        else:  # Use treemap for many items
-            # Treemap visualization (rectangles sized by score)
-            fig_fancy = go.Figure(go.Treemap(
-                labels=[f"{name}<br>{score}%" for name, score in zip(sports_names, match_scores)],
-                values=match_scores,
-                parents=["AI Recommendations"] * len(sports_names),
-                marker=dict(
-                    colorscale='RdYlGn',
-                    cmid=75,
-                    colorbar=dict(title="Match Score %"),
-                    line=dict(width=2, color="white")
-                ),
-                textfont=dict(size=12, color="white"),
-                hovertemplate="<b>%{label}</b><br>Score: %{value}%<extra></extra>",
-                maxdepth=2,
-                pathbar_visible=False
-            ))
-            
-            fig_fancy.update_layout(
-                title=dict(
-                    text="🗺️ AI Recommendation Map",
-                    x=0.5,
-                    font=dict(size=18, color='#2E86AB')
-                ),
-                height=450,
-                margin=dict(t=60, b=20, l=20, r=20)
-            )
+        # Create a beautiful bubble chart
+        fig_fancy = go.Figure()
+        
+        # Create bubble chart with varying sizes and colors
+        fig_fancy.add_trace(go.Scatter(
+            x=list(range(len(sports_names))),
+            y=match_scores,
+            mode='markers+text',
+            marker=dict(
+                size=[score * 0.8 for score in match_scores],  # Bubble size based on score
+                color=match_scores,
+                colorscale='Viridis',  # Beautiful purple-green scale
+                cmin=50,
+                cmax=100,
+                line=dict(color='white', width=2),
+                opacity=0.8,
+                colorbar=dict(title="Match Score %", thickness=15)
+            ),
+            text=[f"{name[:15]}..." if len(name) > 15 else name for name in sports_names],
+            textposition="middle center",
+            textfont=dict(color="white", size=11, family="Arial Black"),
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
+            name="Sports"
+        ))
+        
+        fig_fancy.update_layout(
+            title=dict(
+                text="💫 AI Recommendation Universe",
+                x=0.5,
+                font=dict(size=18, color='#2E86AB')
+            ),
+            xaxis=dict(
+                showgrid=False,
+                showticklabels=False,
+                zeroline=False,
+                title=""
+            ),
+            yaxis=dict(
+                title="Match Score (%)",
+                range=[40, 105],
+                gridcolor='lightgray',
+                tickfont=dict(size=12)
+            ),
+            height=400,
+            margin=dict(t=60, b=50, l=60, r=100),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
         
         # Add sparkle effect with scatter points
         for i, (score, name) in enumerate(zip(match_scores, sports_names)):
