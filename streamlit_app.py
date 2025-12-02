@@ -2888,9 +2888,9 @@ with tab_about:
         st.markdown("""
         This project was created for the course **"Fundamentals and Methods of Computer Science"** 
         at the University of St.Gallen, taught by:
-        - Prof. Dr. Stephan Aier
-        - Dr. Bernhard Bermeitinger
-        - Prof. Dr. Simon Mayer
+        - [Prof. Dr. Stephan Aier](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/32344c07-5d2e-41f0-9ba8-d9f379bb05ee/)
+        - [Dr. Bernhard Bermeitinger](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/1fa3d0cd-cb80-410a-b2b4-dbc3f1a4ee27/)
+        - [Prof. Dr. Simon Mayer](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/b7d5efc7-55f2-4b97-9e31-ac097b6d15e1/)
         
         **Status:** Still in development and not yet reviewed by professors.
         
