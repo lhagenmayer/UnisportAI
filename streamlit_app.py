@@ -2739,15 +2739,8 @@ with tab_profile:
     # RIGHT COLUMN: SETTINGS
     # =========================================================================
     with col_right:
-        # Logout option (ganz oben in der rechten Spalte)
-        if st.button("🚪 Logout", type="secondary", use_container_width=True):
-            handle_logout()
-        
         st.subheader("Settings")
         
-        # =========================================================================
-        # FAVORITE SPORTS
-        # =========================================================================
         # =========================================================================
         # PROFILE VISIBILITY
         # =========================================================================
@@ -2771,6 +2764,11 @@ with tab_profile:
             st.caption("Only you can see your profile and activity")
         
         st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Logout-Button ganz unten in der rechten Spalte
+        st.markdown("---")
+        if st.button("🚪 Logout", type="secondary", use_container_width=True):
+            handle_logout()
 
 # =============================================================================
 # PART 10: TAB 5 - ABOUT
