@@ -2716,10 +2716,6 @@ with tab_profile:
                 st.markdown(f"🕐 Last login {profile['last_login'][:10]}")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Logout option
-        if st.button("🚪 Logout", type="secondary", use_container_width=True):
-            handle_logout()
     
     # =========================================================================
     # SEPARATOR COLUMN: VERTICAL LINE
@@ -2743,6 +2739,10 @@ with tab_profile:
     # RIGHT COLUMN: SETTINGS
     # =========================================================================
     with col_right:
+        # Logout option (ganz oben in der rechten Spalte)
+        if st.button("🚪 Logout", type="secondary", use_container_width=True):
+            handle_logout()
+        
         st.subheader("Settings")
         
         # =========================================================================
@@ -2771,33 +2771,6 @@ with tab_profile:
             st.caption("Only you can see your profile and activity")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # =========================================================================
-        # SAVE ALL CHANGES BUTTON
-        # =========================================================================
-        if st.button("💾 Save All Changes", type="secondary", use_container_width=True):
-            user_sub = get_user_sub()
-            success_count = 0
-            error_messages = []
-            
-            # Save visibility
-            try:
-                if update_user_settings(user_sub, visibility=is_public):
-                    success_count += 1
-                else:
-                    error_messages.append("Failed to update visibility")
-            except Exception as e:
-                error_messages.append(f"Error updating visibility: {str(e)}")
-            
-            # Show results
-            if success_count > 0 and not error_messages:
-                st.success("✅ All changes saved successfully!")
-                st.rerun()
-            elif success_count > 0:
-                st.warning(f"⚠️ Some changes saved, but errors occurred: {', '.join(error_messages)}")
-                st.rerun()
-            else:
-                st.error(f"❌ Failed to save changes: {', '.join(error_messages)}")
 
 # =============================================================================
 # PART 10: TAB 5 - ABOUT

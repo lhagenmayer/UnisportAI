@@ -252,25 +252,32 @@ def fuzzy_match_name(target, candidates, threshold=0.85):
     return None
 
 
-def main():
-    # This is the main function that runs everything
-    # It's good practice to have a main() function that orchestrates everything
-    
-    # First, try to load HTML from a cached file (for testing)
-    # During development, we saved a copy of the HTML so we don't have to download it every time
-    # This makes testing faster
-    cached_file = "/Users/lucah/Library/CloudStorage/OneDrive-FreigegebeneBibliotheken–UniversitaetSt.Gallen/CS_Gruppe6.3_2025 - UnisportAI/.scraper/Universität St.Gallen | Über uns | Services | Unisport St.Gallen.html"
-    
-    if os.path.exists(cached_file):
+def extract_locations(use_cached: bool = False, cached_file: str | None = None):
+    """
+    Extrahiert Locations (Name, Koordinaten, Links, SPID) von der
+    Unisport-Webseite und gibt eine Liste von Dictionaries zurück:
+        {
+            \"name\": str,
+            \"lat\": float | None,
+            \"lng\": float | None,
+            \"ort_href\": str | None,
+            \"spid\": str | None,
+        }
+
+    Diese Funktion ist so gebaut, dass sie im produktiven Scraper
+    wiederverwendet werden kann. `use_cached` und `cached_file` sind
+    nur für lokale Debug-Zwecke gedacht.
+    """
+    # Optional: HTML aus Cache lesen (nur für lokale Tests)
+    if use_cached and cached_file and os.path.exists(cached_file):
         print("Using cached HTML file")
-        # Read the file with UTF-8 encoding (important for German characters like ä, ö, ü)
         with open(cached_file, 'r', encoding='utf-8') as f:
             html_text = f.read()
     else:
-        # If no cached file, download from the website
-        print("Fetching from website...")
+        # Produktiver Standard: direkt von der Website laden
+        print("Fetching locations HTML from website...")
         html_text = fetch_html(SOURCE_URL)
-    
+
     # Now extract all the data from the HTML
     # We have three different sources of information:
     # 1. Markers: coordinates and names from JavaScript
@@ -296,8 +303,8 @@ def main():
     # We need to match them up and merge the information
     merged = []
     seen_names = set()  # Keep track of names we've already processed (to avoid duplicates)
-    fuzzy_matches = []  # Track when we used fuzzy matching
-    exact_matches = 0   # Count how many exact matches we found
+    fuzzy_matches = []  # Track when we used fuzzy matching (debug only)
+    exact_matches = 0   # Count how many exact matches we found (debug only)
     
     # Process markers first (these have coordinates)
     for marker in markers:
@@ -344,67 +351,31 @@ def main():
                 "ort_href": link_info.get("href") if link_info else None,
                 "spid": link_info.get("spid") if link_info else None,
             })
-    
-    # Print results
+
+    return merged
+
+
+def main():
+    """
+    Lokaler Debug-Einstieg: ruft extract_locations() auf und gibt
+    einige Statistiken auf der Konsole aus. Für die produktive
+    Pipeline sollte nur extract_locations() importiert und verwendet
+    werden.
+    """
+    merged = extract_locations(use_cached=False)
+
     print("\n=== MERGE RESULTS ===")
-    print("Exact matches:", exact_matches)
-    print("Fuzzy matches:", len(fuzzy_matches))
-    if fuzzy_matches:
-        for orig, matched in fuzzy_matches:
-            print("  ", orig, "->", matched)
-    print("Locations only in markers:", len(markers))
-    print("Locations only in menu:", len(menu_only))
-    if menu_only:
-        print("  ", menu_only[:5])
-    print("Total merged:", len(merged))
-    
-    # Check what's missing
-    print("\n=== EMPTY ENTRIES CHECK ===")
-    missing_coords = []
-    missing_link = []
-    missing_spid = []
-    
-    for entry in merged:
-        if entry.get("lat") is None or entry.get("lng") is None:
-            missing_coords.append(entry["name"])
-        if entry.get("ort_href") is None:
-            missing_link.append(entry["name"])
-        if entry.get("spid") is None:
-            missing_spid.append(entry["name"])
-    
-    print("Missing coordinates:", len(missing_coords))
-    if missing_coords:
-        print("  ", missing_coords[:10])
-    print("Missing ort_href:", len(missing_link))
-    if missing_link:
-        print("  ", missing_link[:10])
-    print("Missing spid:", len(missing_spid))
-    if missing_spid:
-        print("  ", missing_spid[:10])
-    
+    print("Total merged locations:", len(merged))
+    print("=================\n")
+
     # Show sample entries
     print("\n=== SAMPLE ENTRIES ===")
     for i in range(min(5, len(merged))):
         entry = merged[i]
-        print(i+1, ".", entry['name'])
+        print(i + 1, ".", entry['name'])
         print("   Coords: (", entry['lat'], ",", entry['lng'], ")")
         print("   Href:", entry['ort_href'])
         print("   SPID:", entry['spid'])
-    
-    # Show entries with missing data
-    print("\n=== ENTRIES WITH MISSING DATA ===")
-    for i, entry in enumerate(merged):
-        missing = []
-        if entry.get("lat") is None:
-            missing.append("lat")
-        if entry.get("lng") is None:
-            missing.append("lng")
-        if entry.get("ort_href") is None:
-            missing.append("href")
-        if entry.get("spid") is None:
-            missing.append("spid")
-        if missing:
-            print(i+1, ".", entry['name'], "- Missing:", ", ".join(missing))
 
 
 if __name__ == "__main__":

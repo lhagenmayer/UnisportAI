@@ -10,6 +10,9 @@ from bs4 import BeautifulSoup
 from supabase import create_client
 from dotenv import load_dotenv
 
+# Location extraction (name + coordinates + links) from separate helper module
+from extract_locations_from_html import extract_locations
+
 
 # Function to get HTML from a website
 def fetch_html(url):
@@ -341,7 +344,9 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    # Get all offers from the website
+    # =========================================================================
+    # STEP 1: Get all offers from the website
+    # =========================================================================
     html_source = "https://www.sportprogramm.unisg.ch/unisg/angebote/aktueller_zeitraum/index.html"
     offers = extract_offers(html_source)
     
@@ -353,8 +358,41 @@ def main():
         return
     
     supabase = create_client(supabase_url, supabase_key)
+
+    # =========================================================================
+    # STEP 2: Update locations table (unisport_locations)
+    # =========================================================================
+    # Wichtig für:
+    # - Analytics (Top 10 Standorte, Indoor/Outdoor)
+    # - Validierung von kurs_termine.location_name
+    try:
+        locations = extract_locations()
+        if locations:
+            # Nur relevante Felder für die Tabelle unisport_locations übernehmen
+            rows = []
+            for loc in locations:
+                rows.append(
+                    {
+                        "name": loc.get("name"),
+                        "lat": loc.get("lat"),
+                        "lng": loc.get("lng"),
+                        "ort_href": loc.get("ort_href"),
+                        "spid": loc.get("spid"),
+                        # indoor_outdoor bleibt optional und kann später ergänzt werden
+                    }
+                )
+            supabase.table("unisport_locations").upsert(
+                rows, on_conflict="name"
+            ).execute()
+            print("Supabase:", len(rows), "locations saved")
+        else:
+            print("Warning: No locations extracted from website.")
+    except Exception as e:
+        print("Warning: Failed to update locations:", e)
     
-    # Save offers to database
+    # =========================================================================
+    # STEP 3: Save offers to database
+    # =========================================================================
     supabase.table("sportangebote").upsert(offers, on_conflict="href").execute()
     print("Supabase:", len(offers), "offers saved")
     

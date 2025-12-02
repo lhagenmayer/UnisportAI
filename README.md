@@ -213,6 +213,25 @@ Log in with your Google account using the button in the sidebar.
 
 ---
 
+### 7. Optional: Configure GitHub Actions Scraper
+
+This repo contains a `.scraper/` folder with Python scripts that periodically scrape the Unisport website and write data into Supabase (offers, courses, dates, cancellations).
+
+To run these scripts automatically via GitHub Actions you need to:
+
+1. Ensure your Supabase schema is created (see **Database Schema** section below).
+2. In your GitHub repository, go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+   - `SUPABASE_URL` – your Supabase project URL (e.g. `https://mcbbjje...supabase.co`)
+   - `SUPABASE_KEY` – a key that is allowed to write to the tables (`service_role` is simplest, but handle it carefully).
+3. Check the workflow file in `.github/workflows/` (e.g. `scraper.yml`) to see which secrets it expects and how often it runs.
+
+The Action will then:
+
+- Run the scripts in `.scraper/` on the configured schedule.
+- Use the GitHub secrets to connect to Supabase (no secrets are committed to the repo).
+
+---
+
 ## 🗄 Database Schema (Supabase)
 
 The app expects a PostgreSQL database (via Supabase) with at least the following tables/views:

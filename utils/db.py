@@ -378,19 +378,30 @@ def get_average_rating_for_trainer(trainer_name):
 # Load ML training data for CLI scripts (without Streamlit)
 # This is used by scripts that run outside of Streamlit, so they need to create their own connection
 def get_ml_training_data_cli():
-    from dotenv import load_dotenv
     from supabase import create_client
     
     script_dir = Path(__file__).parent.absolute()
-    parent_dir = script_dir.parents[1]
-    env_path = parent_dir / '.env'
-    load_dotenv(dotenv_path=env_path)
-    
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_KEY")
-    
+    # Projektwurzel (eine Ebene über utils/)
+    parent_dir = script_dir.parent
+    secrets_path = parent_dir / ".streamlit" / "secrets.toml"
+
+    supabase_url = None
+    supabase_key = None
+
+    # Standard-Quelle für CLI-Skripte ist secrets.toml – exakt wie bei der Streamlit-App.
+    if secrets_path.exists():
+        with secrets_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("SUPABASE_URL"):
+                    _, value = stripped.split("=", 1)
+                    supabase_url = value.strip().strip('"').strip("'")
+                elif stripped.startswith("SUPABASE_KEY"):
+                    _, value = stripped.split("=", 1)
+                    supabase_key = value.strip().strip('"').strip("'")
+
     if not supabase_url or not supabase_key:
-        raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env file")
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .streamlit/secrets.toml")
     
     supabase = create_client(supabase_url, supabase_key)
     response = supabase.table("ml_training_data").select("*").execute()
