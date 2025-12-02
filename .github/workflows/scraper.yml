@@ -113,6 +113,17 @@ jobs:
         run: |
           python .scraper/update_cancellations.py
 
+      # Step 8: Verify that unisport_locations table is populated
+      # This small script checks that the locations table is reachable and logs
+      # how many rows it currently contains. If the table cannot be read at all
+      # (e.g. permissions / network), the workflow fails.
+      - name: Verify unisport_locations row count
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python .scraper/verify_unisport_locations.py
+
 # Academic Integrity Notice:
 # This workflow file was developed by AI-based tools (Cursor and Github Copilot).
 # All code was reviewed, validated, and modified by the author.

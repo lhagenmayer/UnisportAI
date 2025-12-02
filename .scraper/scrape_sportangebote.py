@@ -2,6 +2,7 @@
 # and saves them to the database
 
 import os
+import sys
 from datetime import datetime
 from urllib.parse import urljoin, urlparse, parse_qs
 import re
@@ -365,6 +366,8 @@ def main():
     # Wichtig für:
     # - Analytics (Top 10 Standorte, Indoor/Outdoor)
     # - Validierung von kurs_termine.location_name
+    # Wenn dieser Schritt fehlschlägt, soll der gesamte Scraper-Lauf
+    # im CI fehlschlagen, damit das Problem nicht unbemerkt bleibt.
     try:
         locations = extract_locations()
         if locations:
@@ -386,9 +389,14 @@ def main():
             ).execute()
             print("Supabase:", len(rows), "locations saved")
         else:
-            print("Warning: No locations extracted from website.")
+            # Leere Ergebnisliste ist für die produktive Pipeline ein harter Fehler,
+            # weil dann alle Location-bezogenen Analytics ins Leere laufen würden.
+            print("Error: No locations extracted from website – aborting scraper run.")
+            sys.exit(1)
     except Exception as e:
-        print("Warning: Failed to update locations:", e)
+        # Im Fehlerfall mit Exitcode != 0 abbrechen, damit der GitHub-Action-Lauf rot wird.
+        print("Error: Failed to update locations:", e)
+        sys.exit(1)
     
     # =========================================================================
     # STEP 3: Save offers to database
