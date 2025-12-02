@@ -182,12 +182,22 @@ High‑level steps:
 2. Create a project (e.g. `UnisportAI`).
 3. Configure the OAuth consent screen (App name, support email, scopes).
 4. Create OAuth 2.0 credentials of type **Web application**.
-5. Add these redirect URIs:
+5. Add redirect URIs:
 
+   **For local development:**
    ```text
    http://localhost:8501/oauth2callback
-   https://unisportai.streamlit.app/oauth2callback   # if you deploy on Streamlit Cloud
    ```
+
+   **For production (Streamlit Cloud):**
+   ```text
+   https://your-app-name.streamlit.app/oauth2callback
+   ```
+   
+   ⚠️ **IMPORTANT:** 
+   - In production, **DO NOT** use `localhost` redirect URIs
+   - Use **ONLY** your production Streamlit Cloud URL
+   - The redirect URI must **exactly match** your app's URL (including `https://` and `/oauth2callback`)
 
 6. Copy client ID and client secret into `.streamlit/secrets.toml` under `[auth.google]`.
 
@@ -378,7 +388,12 @@ Manual test checklist:
    - Branch: `main`
    - Main file: `streamlit_app.py`
 3. Configure secrets in the Streamlit Cloud UI (copy contents from your local `.streamlit/secrets.toml`).
-4. Update Google OAuth redirect URIs to include your cloud URL.
+4. **CRITICAL:** Update Google OAuth redirect URIs in Google Cloud Console:
+   - Go to Google Cloud Console → APIs & Services → Credentials
+   - Edit your OAuth 2.0 Client ID
+   - **Remove** any `localhost` redirect URIs
+   - **Add** your production URL: `https://your-app-name.streamlit.app/oauth2callback`
+   - The redirect URI must match your Streamlit Cloud app URL exactly
 
 ### Other deployment options
 
@@ -416,9 +431,16 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.add
 
 - **`redirect_uri_mismatch`**
   - Ensure all redirect URIs configured in Google exactly match the URLs used by Streamlit.
+  - **In production:** Remove `localhost` redirect URIs from Google Cloud Console
+  - **In production:** Use only your production URL: `https://your-app-name.streamlit.app/oauth2callback`
+  - The redirect URI must match exactly (including protocol `https://` and path `/oauth2callback`)
 
-- **“This app isn’t verified”**
+- **"This app isn't verified"**
   - For development, add your test accounts as test users in the OAuth consent screen.
+
+- **Redirect to localhost in production**
+  - This happens if `localhost` redirect URIs are still configured in Google Cloud Console
+  - Solution: Remove all `localhost` redirect URIs and keep only your production URL
 
 ### Streamlit issues
 

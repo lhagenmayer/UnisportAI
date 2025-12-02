@@ -3,7 +3,42 @@
 # of the authenticated user with Supabase
 
 import streamlit as st
+import os
 from datetime import datetime, timezone
+
+
+# Check if running in production (Streamlit Cloud)
+# This helps ensure OAuth redirect URIs are configured correctly
+def is_production():
+    """
+    Check if the app is running in production (Streamlit Cloud).
+    
+    Returns True if running on Streamlit Cloud, False otherwise.
+    """
+    # Streamlit Cloud sets this environment variable
+    streamlit_cloud = os.environ.get("STREAMLIT_CLOUD", "").lower() == "true"
+    
+    # If STREAMLIT_CLOUD is set, we're definitely in production
+    if streamlit_cloud:
+        return True
+    
+    # Fallback: check if we're not on localhost
+    # In production, the URL won't contain localhost
+    try:
+        # Check if we can access the query params (which contain the full URL in some cases)
+        # Or check environment variables that might indicate production
+        hostname = os.environ.get("HOSTNAME", "")
+        if "streamlit.app" in hostname or "streamlit.io" in hostname:
+            return True
+        
+        # Check if we're definitely on localhost
+        if "localhost" in hostname or "127.0.0.1" in hostname:
+            return False
+    except:
+        pass
+    
+    # Default: assume local development if we can't determine
+    return False
 
 
 # Check if a user is currently logged in

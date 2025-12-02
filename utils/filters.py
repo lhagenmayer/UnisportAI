@@ -198,7 +198,7 @@ def filter_offers(
             offer_name_lower = offer_name.lower()
             search_text_lower = search_text.lower()
             if search_text_lower not in offer_name_lower:
-                continue
+            continue
             
         filtered.append(offer)
     

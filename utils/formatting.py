@@ -119,7 +119,7 @@ def create_user_info_card_html(user_name, user_email):
         </div>
     </div>
     """
-    
+
     return html
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)

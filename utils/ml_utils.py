@@ -206,7 +206,7 @@ def build_user_preferences_from_filters(selected_focus, selected_intensity, sele
     
     Returns:
         Dictionary with 13 feature values. Most are 0.0 or 1.0 (binary),
-        except intensity which is 0.0 to 1.0 (continuous)
+            except intensity which is 0.0 to 1.0 (continuous)
     
     Note:
         This vector is then used by the KNN model to find similar sports.

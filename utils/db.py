@@ -503,7 +503,18 @@ def get_offers_complete():
         # If there's an error, log it and show message to user
         error_message = str(e)
         logger.error(f"Error fetching offers: {error_message}")
-        st.error("Failed to load sport offers")
+        
+        # Check what kind of error it was
+        has_url_error = "URL not provided" in error_message or "url" in error_message.lower()
+        has_key_error = "key not provided" in error_message or "api key" in error_message.lower()
+        has_auth_error = "authentication" in error_message.lower() or "unauthorized" in error_message.lower()
+        
+        if has_url_error or has_key_error:
+            st.error("⚠️ **Database Configuration Error**\n\nPlease check your Supabase credentials in Streamlit Cloud secrets.")
+        elif has_auth_error:
+            st.error("⚠️ **Database Authentication Error**\n\nPlease verify your Supabase API key has the correct permissions.")
+        else:
+            st.error(f"⚠️ **Failed to load sport offers**\n\nError: {error_message[:200]}")
         return []
 
 # Load future events from vw_termine_full view
@@ -547,7 +558,18 @@ def get_events(offer_href=None):
         # If there's an error, log it and show message to user
         error_message = str(e)
         logger.error(f"Error fetching events: {error_message}")
-        st.error("Failed to load events")
+        
+        # Check what kind of error it was
+        has_url_error = "URL not provided" in error_message or "url" in error_message.lower()
+        has_key_error = "key not provided" in error_message or "api key" in error_message.lower()
+        has_auth_error = "authentication" in error_message.lower() or "unauthorized" in error_message.lower()
+        
+        if has_url_error or has_key_error:
+            st.error("⚠️ **Database Configuration Error**\n\nPlease check your Supabase credentials in Streamlit Cloud secrets.")
+        elif has_auth_error:
+            st.error("⚠️ **Database Authentication Error**\n\nPlease verify your Supabase API key has the correct permissions.")
+        else:
+            st.error(f"⚠️ **Failed to load events**\n\nError: {error_message[:200]}")
         return []
 
 # Load complete user profile from users table

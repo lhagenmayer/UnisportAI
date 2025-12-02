@@ -61,6 +61,7 @@ from datetime import datetime, time
 
 # Our custom authentication functions
 from utils.auth import (
+    is_production,
     is_logged_in, 
     sync_user_to_supabase, 
     check_token_expiry, 
@@ -232,6 +233,20 @@ def render_unified_sidebar(sports_data=None, events=None):
                 on_click=st.login,
                 args=["google"]
             )
+            
+            # Show production OAuth configuration reminder
+            if is_production():
+                with st.expander("⚠️ OAuth Configuration Check", expanded=False):
+                    st.info("""
+                    **If login fails with a redirect error:**
+                    
+                    Ensure your Google OAuth redirect URI in Google Cloud Console is set to:
+                    ```
+                    https://your-app-name.streamlit.app/oauth2callback
+                    ```
+                    
+                    **Important:** Remove any `localhost` redirect URIs from production OAuth credentials.
+                    """)
             
             st.markdown("<br>", unsafe_allow_html=True)
         else:
@@ -568,7 +583,8 @@ db_ok, db_message = test_database_connection()
 
 if not db_ok:
     # Show database error prominently at the top
-    st.error("⚠️ Database Not Connected")
+    st.error("⚠️ **Database Connection Failed**")
+    st.info("🔧 **This is a configuration issue, not a login requirement.**\n\nThe app cannot connect to the Supabase database. Please check your database credentials.")
     with st.expander("📚 How to fix this", expanded=True):
         st.markdown(db_message)
         st.markdown("""
@@ -582,7 +598,18 @@ if not db_ok:
         
         **Without the database, the app can't load data.**
         
-        ### How to proceed:
+        ### For Streamlit Cloud:
+        1. Go to your app settings in Streamlit Cloud
+        2. Navigate to "Secrets" section
+        3. Add your Supabase credentials in this format:
+        
+        ```toml
+        [connections.supabase]
+        url = "https://your-project-id.supabase.co"
+        key = "your-anon-or-service-key"
+        ```
+        
+        ### For local development:
         - Verify the configuration in `.streamlit/secrets.toml`
         - Check your Supabase project status
         - Review the connection details shown in the error message above
