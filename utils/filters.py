@@ -53,6 +53,7 @@ def check_event_matches_filters(
     time_end,
     location_filter,
     hide_cancelled,
+    search_text="",
 ):
     """
     Check if a single event matches all the provided filters.
@@ -70,6 +71,7 @@ def check_event_matches_filters(
         time_end: End time for filtering (or None for no end limit)
         location_filter: List of locations to include (or None/empty for all)
         hide_cancelled: Boolean, if True exclude cancelled events
+        search_text: Text to search in sport name, location name, or trainer names
     
     Returns:
         Boolean: True if event matches all filters, False otherwise
@@ -130,6 +132,29 @@ def check_event_matches_filters(
     if location_filter and len(location_filter) > 0:
         event_location = event.get('location_name', '')
         if event_location not in location_filter:
+            return False
+    
+    # STEP 8: Check search text filter
+    if search_text:
+        search_text_lower = search_text.lower()
+        # Search in sport name
+        sport_name = event.get('sport_name', '').lower()
+        # Search in location name
+        location_name = event.get('location_name', '').lower()
+        # Search in trainer names
+        trainers = event.get('trainers', [])
+        trainer_names = []
+        for trainer in trainers:
+            if isinstance(trainer, dict):
+                trainer_names.append(trainer.get('name', '').lower())
+            else:
+                trainer_names.append(str(trainer).lower())
+        trainer_names_str = ' '.join(trainer_names)
+        
+        # Check if search text matches any field
+        if (search_text_lower not in sport_name and 
+            search_text_lower not in location_name and 
+            search_text_lower not in trainer_names_str):
             return False
     
     # If execution reaches here, event passed all filters
@@ -260,6 +285,7 @@ def filter_events(
     time_end=None,
     location_filter=None,
     hide_cancelled=True,
+    search_text="",
 ):
     """
     Filter a list of events using the check_event_matches_filters function.
@@ -269,7 +295,15 @@ def filter_events(
     
     Args:
         events: List of event dictionaries
-        Various filter parameters (see check_event_matches_filters for details)
+        sport_filter: List of sport names to include (or None/empty for all)
+        weekday_filter: List of weekdays to include (or None/empty for all)
+        date_start: Start date for filtering (or None for no start limit)
+        date_end: End date for filtering (or None for no end limit)
+        time_start: Start time for filtering (or None for no start limit)
+        time_end: End time for filtering (or None for no end limit)
+        location_filter: List of locations to include (or None/empty for all)
+        hide_cancelled: Boolean, if True exclude cancelled events
+        search_text: Text to search in sport name, location name, or trainer names
     
     Returns:
         List of filtered events
@@ -282,7 +316,7 @@ def filter_events(
         matches = check_event_matches_filters(
             event, sport_filter, weekday_filter,
             date_start, date_end, time_start, time_end,
-            location_filter, hide_cancelled
+            location_filter, hide_cancelled, search_text
         )
         if matches:
             filtered.append(event)

@@ -566,8 +566,6 @@ def render_analytics_section():
                     x=weekdays,
                     y=counts,
                     marker_color='#2E86AB',
-                    text=counts,
-                    textposition='auto',
                 )
             ])
             fig.update_layout(
@@ -637,156 +635,64 @@ def render_analytics_section():
             sports_data = []
         
         if sports_data:
-            # Get current filtered results to exclude from recommendations
+            # Get filter values from session state
             search_text = st.session_state.get('search_text', '')
             show_upcoming_only = st.session_state.get('show_upcoming_only', True)
-            
-            current_filtered = filter_offers(
-                sports_data,
-                show_upcoming_only=show_upcoming_only,
-                search_text=search_text,
-                intensity=selected_intensity if selected_intensity else None,
-                focus=selected_focus if selected_focus else None,
-                setting=selected_setting if selected_setting else None,
-                min_match_score=0,
-                max_results=1000  # Get all filtered results
-            )
-            
-            # Get default settings from session state
             min_match = st.session_state.get('ml_min_match', 50)
-            max_results = st.session_state.get('ml_max_results', 10)
             
-            # Get ML recommendations with fallback logic (return ALL recommendations, even 100% matches)
+            # Get event filters from session state (for soft filtering)
+            event_filters = {}
+            selected_weekdays = st.session_state.get('weekday', [])
+            date_start = st.session_state.get('date_start', None)
+            date_end = st.session_state.get('date_end', None)
+            time_start = st.session_state.get('start_time', None)
+            time_end = st.session_state.get('end_time', None)
+            selected_locations = st.session_state.get('location', [])
+            
+            if selected_weekdays:
+                event_filters['weekday'] = selected_weekdays
+            if date_start:
+                event_filters['date_start'] = date_start
+            if date_end:
+                event_filters['date_end'] = date_end
+            if time_start:
+                event_filters['time_start'] = time_start
+            if time_end:
+                event_filters['time_end'] = time_end
+            if selected_locations:
+                event_filters['location'] = selected_locations
+            
+            # Get merged recommendations using the new unified function
             with st.spinner("🤖 AI is analyzing sports..."):
-                recommendations = []
+                from utils.ml_utils import get_merged_recommendations
+                
+                # Try with user's min_match, then fallback to lower thresholds
                 fallback_thresholds = [min_match, 40, 30, 20, 0]
+                all_recommendations = []
                 
                 for threshold in fallback_thresholds:
-                    recommendations = get_ml_recommendations(
+                    all_recommendations = get_merged_recommendations(
+                        sports_data=sports_data,
                         selected_focus=selected_focus,
                         selected_intensity=selected_intensity,
                         selected_setting=selected_setting,
-                        min_match_score=threshold,
-                        max_results=max_results,
-                        exclude_sports=None  # Return all recommendations, even those already in filtered list
+                        search_text=search_text,
+                        show_upcoming_only=show_upcoming_only,
+                        event_filters=event_filters if event_filters else None,
+                        min_match_score=threshold
                     )
-                    if recommendations:
+                    if all_recommendations:
                         break
             
             # Show AI recommendations if available
-            if recommendations:
-                # Combine filtered results and ML recommendations for Top 3
-                all_offers_for_top3 = []
+            if all_recommendations:
+                # Get top 3 for podest
+                top3_combined = all_recommendations[:3]
                 
-                # Add filtered results (they have match_score=100.0)
-                for offer in current_filtered:
-                    all_offers_for_top3.append({
-                        'name': offer.get('name'),
-                        'match_score': offer.get('match_score', 100.0),
-                        'offer': offer
-                    })
-                
-                # Add ML recommendations
-                for rec in recommendations:
-                    sport_name = rec['sport']
-                    match_score = rec['match_score']
-                    # Find full offer data
-                    matching_offer = None
-                    for offer in sports_data:
-                        if offer.get('name') == sport_name:
-                            matching_offer = offer
-                            break
-                    if matching_offer:
-                        all_offers_for_top3.append({
-                            'name': sport_name,
-                            'match_score': match_score,
-                            'offer': matching_offer
-                        })
-                
-                # Sort by match score (highest first) and get top 3
-                all_offers_for_top3 = sorted(all_offers_for_top3, key=lambda x: x['match_score'], reverse=True)
-                top3_combined = all_offers_for_top3[:3]
-                
-                # Calculate match scores for ALL sports using ML model
-                from utils.ml_utils import load_knn_model, build_user_preferences_from_filters, ML_FEATURE_COLUMNS
-                import numpy as np
-                
-                model_data = load_knn_model()
-                all_sports_scores = []
-                
-                if model_data:
-                    knn_model = model_data['knn_model']
-                    scaler = model_data['scaler']
-                    sports_df = model_data['sports_df']
-                    
-                    # Build user preferences from filters
-                    user_prefs = build_user_preferences_from_filters(
-                        selected_focus, selected_intensity, selected_setting
-                    )
-                    
-                    # Build feature vector
-                    feature_values = []
-                    for col in ML_FEATURE_COLUMNS:
-                        value = user_prefs.get(col, 0.0)
-                        feature_values.append(value)
-                    user_vector = np.array(feature_values)
-                    user_vector = user_vector.reshape(1, -1)
-                    
-                    # Scale
-                    user_vector_scaled = scaler.transform(user_vector)
-                    
-                    # Get all sports as neighbors
-                    n_sports = len(sports_df)
-                    distances, indices = knn_model.kneighbors(user_vector_scaled, n_neighbors=n_sports)
-                    
-                    # Calculate match scores for all sports
-                    for distance, idx in zip(distances[0], indices[0]):
-                        sport_name = sports_df.iloc[idx]['Angebot']
-                        match_score = (1 - distance) * 100
-                        
-                        # Find full offer data
-                        matching_offer = None
-                        for offer in sports_data:
-                            if offer.get('name') == sport_name:
-                                matching_offer = offer
-                                break
-                        
-                        if matching_offer:
-                            # Respect the show_upcoming_only filter (same as main list)
-                            if show_upcoming_only and matching_offer.get('future_events_count', 0) == 0:
-                                continue  # Skip sports without upcoming events if filter is enabled
-                            
-                            # Check if sport is in filtered list
-                            is_filtered = False
-                            for o in current_filtered:
-                                if o.get('name') == sport_name:
-                                    is_filtered = True
-                                    break
-                            
-                            all_sports_scores.append({
-                                'name': sport_name,
-                                'match_score': round(match_score, 1),
-                                'offer': matching_offer,
-                                'is_filtered': is_filtered
-                            })
-                else:
-                    # Fallback: if model not available, use filtered results only
-                    for offer in current_filtered:
-                        all_sports_scores.append({
-                            'name': offer.get('name'),
-                            'match_score': offer.get('match_score', 100.0),
-                            'offer': offer,
-                            'is_filtered': True
-                        })
-                
-                # Prepare data for chart - use all sports with scores
-                chart_data = all_sports_scores
-                
-                # Sort by match score (highest first)
-                chart_data = sorted(chart_data, key=lambda x: x['match_score'], reverse=True)
-                
-                # Limit to top 10 for the graph
-                chart_data_top10 = chart_data[:10]
+                # Get next 10 for graph (excluding top 3)
+                top3_names = {item['name'] for item in top3_combined}
+                chart_data_filtered = [item for item in all_recommendations if item['name'] not in top3_names]
+                chart_data_top10 = chart_data_filtered[:10]
                 
                 # Calculate average score for chart (using top 10)
                 if chart_data_top10:
@@ -802,7 +708,7 @@ def render_analytics_section():
                     # Add title above podest (consistent with graph titles)
                     st.markdown("### Top Recommendations")
                     
-                    if len(top3_combined) >= 3:
+                    if top3_combined:
                         medals = ['🥇', '🥈', '🥉']
                         
                         # Create compact podest using Streamlit components
@@ -1023,7 +929,6 @@ def render_analytics_section():
                                 offer = chart_item['offer']
                                 sport_name = chart_item['name']
                                 match_score = chart_item['match_score']
-                                is_filtered = chart_item.get('is_filtered', False)
                                 
                                 additional_feature_tags = []
                                 
@@ -1327,6 +1232,7 @@ with tab_overview:
                 date_start=date_start,
                 date_end=date_end,
                 time_start=time_start_filter,
+                search_text=search_text,
                 time_end=time_end_filter,
                 location_filter=selected_locations if selected_locations else None,
                 hide_cancelled=hide_cancelled
@@ -1350,109 +1256,61 @@ with tab_overview:
             st.warning(f"⚠️ Could not apply event filters: {e}")
     
     # =========================================================================
-    # ADD ML RECOMMENDATIONS TO THE LIST
+    # MERGE FILTERED RESULTS WITH ML RECOMMENDATIONS
     # =========================================================================
-    # If filters are selected, get ML recommendations and add them to the list
+    # If filters are selected, use merged recommendations (combines filtered + ML)
     has_filters = bool(selected_focus or selected_intensity or selected_setting)
     if has_filters:
-        # Get ML recommendations
+        # Get merged recommendations using the unified function
         min_match = st.session_state.get('ml_min_match', 50)
-        max_results = st.session_state.get('ml_max_results', 10)
         
-        # Get names of already displayed offers (to avoid duplicates)
-        existing_offer_names = {offer.get('name') for offer in offers}
+        # Prepare event filters for get_merged_recommendations
+        event_filters = {}
+        if selected_weekdays:
+            event_filters['weekday'] = selected_weekdays
+        if date_start:
+            event_filters['date_start'] = date_start
+        if date_end:
+            event_filters['date_end'] = date_end
+        if time_start_filter:
+            event_filters['time_start'] = time_start_filter
+        if time_end_filter:
+            event_filters['time_end'] = time_end_filter
+        if selected_locations:
+            event_filters['location'] = selected_locations
         
-        # Calculate match scores for ALL sports using ML model (same as graph)
-        # This ensures the list shows the same sports as the graph
-        from utils.ml_utils import load_knn_model, build_user_preferences_from_filters, ML_FEATURE_COLUMNS
-        import numpy as np
+        # Get merged recommendations (combines filtered + ML, applies all filters)
+        from utils.ml_utils import get_merged_recommendations
         
-        model_data = load_knn_model()
-        all_sports_scores = []
+        # Try with user's min_match, then fallback to lower thresholds
+        fallback_thresholds = [min_match, 40, 30, 20, 0]
+        merged_recommendations = []
         
-        if model_data:
-            knn_model = model_data['knn_model']
-            scaler = model_data['scaler']
-            sports_df = model_data['sports_df']
-            
-            # Build user preferences from filters
-            user_prefs = build_user_preferences_from_filters(
-                selected_focus, selected_intensity, selected_setting
+        for threshold in fallback_thresholds:
+            merged_recommendations = get_merged_recommendations(
+                sports_data=offers_data,
+                selected_focus=selected_focus,
+                selected_intensity=selected_intensity,
+                selected_setting=selected_setting,
+                search_text=search_text,
+                show_upcoming_only=show_upcoming_only,
+                event_filters=event_filters if event_filters else None,
+                min_match_score=threshold
             )
-            
-            # Build feature vector using list comprehension
-            feature_values = [user_prefs.get(col, 0.0) for col in ML_FEATURE_COLUMNS]
-            user_vector = np.array(feature_values)
-            user_vector = user_vector.reshape(1, -1)
-            
-            # Scale
-            user_vector_scaled = scaler.transform(user_vector)
-            
-            # Get all sports as neighbors
-            n_sports = len(sports_df)
-            distances, indices = knn_model.kneighbors(user_vector_scaled, n_neighbors=n_sports)
-            
-            # Calculate match scores for all sports
-            for distance, idx in zip(distances[0], indices[0]):
-                sport_name = sports_df.iloc[idx]['Angebot']
-                match_score = (1 - distance) * 100
-                
-                # Find full offer data
-                matching_offer = None
-                for offer in offers_data:
-                    if offer.get('name') == sport_name:
-                        matching_offer = offer.copy()
-                        break
-                
-                if matching_offer:
-                    all_sports_scores.append({
-                        'name': sport_name,
-                        'match_score': round(match_score, 1),
-                        'offer': matching_offer
-                    })
+            if merged_recommendations:
+                break
         
-        # Sort by match score and get top recommendations (same as graph)
-        all_sports_scores = sorted(all_sports_scores, key=lambda x: x['match_score'], reverse=True)
-        # Filter by min_match_score before limiting to max_results
-        filtered_scores = []
-        for rec in all_sports_scores:
-            if rec['match_score'] >= min_match:
-                filtered_scores.append(rec)
-        if filtered_scores:
-            top_ml_recommendations = filtered_scores[:max_results]
-        else:
-            top_ml_recommendations = []
-        
-        # Add ML recommendations to the offers list
-        # Respect the show_upcoming_only filter from session state
-        for rec in top_ml_recommendations:
-            sport_name = rec['name']
-            match_score = rec['match_score']
-            matching_offer = rec['offer']
-            
-            # Respect the show_upcoming_only filter
-            if show_upcoming_only and matching_offer.get('future_events_count', 0) == 0:
-                continue  # Skip sports without upcoming events if filter is enabled
-            
-            # Check if already in the list
-            if sport_name not in existing_offer_names:
-                # Not in list yet - add it with ML match score
-                matching_offer['match_score'] = match_score
-                matching_offer['is_ml_recommendation'] = True
-                offers.append(matching_offer)
-                existing_offer_names.add(sport_name)
-            else:
-                # Already in list - update match score if ML score is higher
-                # This ensures ML recommendations get proper scoring even if they match filters
-                for existing_offer in offers:
-                    if existing_offer.get('name') == sport_name:
-                        # Update with ML match score (which may be more accurate than filter score)
-                        existing_offer['match_score'] = match_score
-                        existing_offer['is_ml_recommendation'] = True
-                        break
-    
-    # Sort offers by match score (highest first) so ML recommendations appear at the top
-    offers = sorted(offers, key=lambda x: x.get('match_score', 0), reverse=True)
+        # Convert merged recommendations to offers format
+        # The merged recommendations already have match_score and are sorted
+        offers = []
+        for rec in merged_recommendations:
+            offer = rec['offer'].copy()
+            offer['match_score'] = rec['match_score']
+            offers.append(offer)
+    else:
+        # No ML filters selected - just use filtered results
+        # Sort by match score (highest first)
+        offers = sorted(offers, key=lambda x: x.get('match_score', 0), reverse=True)
     
     # Show toast notification if user just clicked "View Details"
     if st.session_state.get('show_details_hint'):
@@ -1492,6 +1350,7 @@ with tab_overview:
                     upcoming_events,
                     sport_filter=selected_offers_filter or None,
                     weekday_filter=selected_weekdays or None,
+                    search_text=search_text,
                     date_start=date_start,
                     date_end=date_end,
                     time_start=time_start_filter,
@@ -1790,6 +1649,7 @@ with tab_details:
         # =====================================================================
         # GET FILTER STATES
         # =====================================================================
+        search_text = st.session_state.get('search_text', '')
         selected_sports = st.session_state.get('offers', [])
         hide_cancelled = st.session_state.get('hide_cancelled', False)  # Show all events by default
         date_start = st.session_state.get('date_start', None)
@@ -1806,6 +1666,28 @@ with tab_details:
         filtered_events = []
         
         for e in events:
+            # Search text filter (check first for performance)
+            if search_text:
+                search_text_lower = search_text.lower()
+                # Search in sport name
+                sport_name = e.get('sport_name', '').lower()
+                # Search in location name
+                location_name = e.get('location_name', '').lower()
+                # Search in trainer names
+                trainers = e.get('trainers', [])
+                trainer_names = []
+                for trainer in trainers:
+                    if isinstance(trainer, dict):
+                        trainer_names.append(trainer.get('name', '').lower())
+                    else:
+                        trainer_names.append(str(trainer).lower())
+                trainer_names_str = ' '.join(trainer_names)
+                
+                # Check if search text matches any field
+                if (search_text_lower not in sport_name and 
+                    search_text_lower not in location_name and 
+                    search_text_lower not in trainer_names_str):
+                    continue
             # Sport filter
             if selected_sports and e.get('sport_name', '') not in selected_sports:
                 continue
