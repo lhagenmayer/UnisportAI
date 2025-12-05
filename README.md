@@ -11,8 +11,9 @@ The app focuses on:
 All of the content below is **fully up to date** with the current project structure:
 
 - `streamlit_app.py` - Main application entry point
-- `utils/` - Utility modules (auth, db, filters, ml_utils, formatting)
+- `utils/` - Utility modules (auth, db, filters, ml_utils, formatting, analytics)
 - `ml/` - ML training utilities and model artifacts
+- `.scraper/` - Web scraping scripts for data collection
 
 ---
 
@@ -48,8 +49,7 @@ All of the content below is **fully up to date** with the current project struct
     - Date range
     - Time range
   - **AI Settings**
-    - Minimum match score (0–100 %)
-    - Maximum number of recommendations
+    - Minimum match score (20–100 %, default: 50%)
 - **Course dates**
   - Table view of upcoming course dates (from `vw_termine_full`)
   - Cancellation status, location and trainers per event
@@ -69,12 +69,13 @@ All of the content below is **fully up to date** with the current project struct
 
 ### 📊 Analytics & Visualisations
 
-- **ML feature analysis**
-  - Radar chart for sport feature profiles
-  - Feature variance chart showing which features are most discriminative
-- **Intensity & setting distribution**
-  - Pie chart of intensity levels
-  - Bar chart of settings (Solo, Duo, Team, …)
+- **Course statistics**
+  - Course availability by weekday (bar chart)
+  - Course availability by time of day (bar chart)
+- **AI-powered recommendations**
+  - Top 3 recommendations with match scores (podest view)
+  - Extended recommendations chart (top 10 sports with horizontal bar chart)
+  - Recommendations appear automatically when activity filters are selected
 
 ---
 
@@ -99,6 +100,12 @@ All of the content below is **fully up to date** with the current project struct
 **Visualisation**
 
 - Plotly (graph_objects + express)
+
+**Web scraping** (for `.scraper/` scripts)
+
+- requests – HTTP library for fetching web pages
+- beautifulsoup4, lxml – HTML parsing
+- urllib3 – HTTP client utilities
 
 See `requirements.txt` for the exact dependency list.
 
@@ -252,16 +259,22 @@ UnisportAI/
 │   ├── db.py           # Supabase data access layer
 │   ├── filters.py      # Event and offer filtering logic
 │   ├── ml_utils.py     # ML model loading and recommendations
-│   └── formatting.py   # HTML formatting utilities
+│   ├── formatting.py   # HTML formatting utilities
+│   └── analytics.py    # Analytics visualizations and charts
 ├── ml/                 # ML recommender utilities and model
 │   ├── recommender.py  # KNN recommender class (training / testing)
 │   ├── train.py        # CLI script to train and save the model
 │   ├── test.py         # CLI script to test recommendations
 │   └── models/
 │       └── knn_recommender.joblib  # Saved model bundle used by the app
+├── .scraper/           # Web scraping scripts
+│   ├── scrape_sportangebote.py    # Scrape sports offers and courses
+│   ├── extract_locations_from_html.py  # Extract location data
+│   └── update_cancellations.py    # Update cancellation status
 ├── requirements.txt    # Python dependencies
+├── schema.sql          # Database schema definition
 ├── .streamlit/         # (optional) local Streamlit config & secrets
-└── .github/, .scraper/ # CI and scraping utilities (not required for basic usage)
+└── .github/            # CI workflows (GitHub Actions)
 ```
 
 ### Module overview
@@ -285,12 +298,17 @@ UnisportAI/
 - **`utils/db.py`**
   - Creates a cached Supabase connection via `st-supabase-connection`
   - Provides high‑level query functions:
-    - `get_offers_complete()`
-    - `get_events(offer_href)`
-    - `get_user_complete(user_sub)`
-    - `update_user_settings(...)`
-    - ML training data loaders
-    - `get_data_timestamp()` – ETL run timestamp retrieval
+    - `get_offers_complete()` – load all sports offers
+    - `get_events(offer_href)` – load events (optionally filtered by offer)
+    - `load_and_filter_offers(filters)` – unified function to load and filter offers with ML
+    - `load_and_filter_events(filters, offer_href)` – unified function to load and filter events
+    - `get_user_complete(user_sub)` – load user profile
+    - `get_events_grouped_by_offer()` – group events by offer for efficient lookup
+    - `get_events_grouped_by_sport()` – group events by sport for efficient lookup
+    - `get_events_by_weekday()` – analytics: count events by weekday
+    - `get_events_by_hour()` – analytics: count events by hour of day
+    - `get_ml_training_data_cli()` – load ML training data for CLI scripts
+    - `create_or_update_user(user_data)` – create or update user in database
 
 - **`utils/filters.py`**
   - Event and offer filtering logic
@@ -305,12 +323,27 @@ UnisportAI/
   - `get_ml_recommendations()` – get ML-based sport recommendations
 
 - **`utils/formatting.py`**
-  - HTML formatting utilities
-  - `create_user_info_card_html()` – user info card HTML generation
+  - HTML formatting utilities and date/time formatters
+  - `format_intensity_display()`, `format_focus_display()` – display formatters
+  - `parse_event_datetime()`, `format_weekday()`, `format_time_range()` – datetime utilities
+  - `convert_events_to_table_data()` – convert events to DataFrame format
+
+- **`utils/analytics.py`**
+  - Analytics visualizations and charts
+  - `render_analytics_section()` – main analytics dashboard with charts
+  - `render_team_contribution_matrix()` – team contribution visualization
+  - ML feature analysis, intensity/setting distributions
 
 - **`ml/`**
   - Not required for running the app if a pre‑trained model exists
   - Useful when you want to retrain or experiment with the recommender
+
+- **`.scraper/`**
+  - Web scraping scripts for automated data collection
+  - `scrape_sportangebote.py` – main scraper for offers, courses, and dates
+  - `extract_locations_from_html.py` – location data extraction
+  - `update_cancellations.py` – cancellation status updates
+  - Designed to run via GitHub Actions on a schedule
 
 
 ## 🤖 AI‑Assisted Development Transparency

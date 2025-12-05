@@ -1,14 +1,28 @@
-"""test_model.py
-----------------
-Script to test the KNN sport recommender model with different user personas.
-This script demonstrates how the trained model works with various user preference combinations.
+"""
+================================================================================
+TEST KNN MODEL
+================================================================================
+
+Purpose: Script to test the KNN sport recommender model with different user personas.
+Demonstrates how the trained model works with various user preference combinations.
+================================================================================
 """
 
 from ml.recommender import KNNSportRecommender
 from utils.db import get_ml_training_data_cli
 
+# =============================================================================
+# MODEL TESTING
+# =============================================================================
+# PURPOSE: Test the trained KNN recommender with sample user personas
+
 def test_model():
-    """Test the trained KNN recommender with sample user personas"""
+    """
+    Test the trained KNN recommender with sample user personas.
+    
+    HOW: Creates test personas with different preferences, queries the model,
+    and displays recommendations to verify the model works correctly.
+    """
     print("\n" + "="*60)
     print("KNN SPORT RECOMMENDER - MODEL TESTING")
     print("="*60 + "\n")

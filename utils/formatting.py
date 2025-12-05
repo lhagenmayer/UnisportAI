@@ -1,126 +1,373 @@
-"""HTML and formatting utilities.
+"""
+================================================================================
+HTML AND FORMATTING UTILITIES
+================================================================================
 
-This module provides functions for generating HTML and formatted strings that
-can be displayed in Streamlit using st.markdown() with unsafe_allow_html=True.
+Purpose: Functions for generating HTML and formatted strings that can be displayed
+in Streamlit using st.markdown() with unsafe_allow_html=True. Also includes
+date/time formatting utilities for consistent display across the app.
 
-WHAT IS THIS MODULE FOR?
--------------------------
-Streamlit has built-in components (st.write, st.title, etc.), but sometimes
-you need custom styling. This module helps create custom HTML/CSS that can
-be rendered in Streamlit.
-
-IMPORTANT FOR BEGINNERS:
-------------------------
-- HTML (HyperText Markup Language) is the language used to structure web pages
-- CSS (Cascading Style Sheets) is used to style HTML elements
-- Streamlit normally handles styling automatically, but you can override it
-- Always use unsafe_allow_html=True carefully - only with trusted content
-
-EXAMPLE USAGE:
---------------
-    html = create_user_info_card_html("John Doe", "john@example.com")
-    st.markdown(html, unsafe_allow_html=True)
+WHY: Streamlit has built-in components (st.write, st.title, etc.), but sometimes
+you need custom styling. This module helps create custom HTML/CSS that can be
+rendered in Streamlit. Always use unsafe_allow_html=True carefully - only with
+trusted content.
+================================================================================
 """
 
+from datetime import datetime
+import pandas as pd
+import streamlit as st
 
-def create_user_info_card_html(user_name, user_email):
+
+def format_intensity_display(intensity_value):
     """
-    Create HTML for a styled user information card.
-    
-    This function creates a gradient-styled card that displays
-    user information (name and email) in the Streamlit sidebar or main area.
-    
-    How it works:
-    1. Takes user name and email as input
-    2. Builds an HTML string with inline CSS styling
-    3. Returns the HTML string (which can then be rendered with st.markdown)
-    
-    Streamlit concept:
-    Streamlit's st.markdown() can render HTML if unsafe_allow_html=True is set.
-    This allows custom styling beyond Streamlit's default components.
-    
-    CSS explanation:
-    - `background: linear-gradient(...)`: Creates a gradient color background
-    - `padding: 20px`: Adds space inside the card (20 pixels on all sides)
-    - `border-radius: 12px`: Makes corners rounded (12 pixel radius)
-    - `box-shadow: ...`: Adds a shadow effect to make the card appear elevated
-    - `color: white`: Sets text color to white
-    - `font-size`, `font-weight`: Controls text appearance
-    
-    Example:
-    ```python
-    # In your Streamlit app:
-    html = create_user_info_card_html("Alice Smith", "alice@example.com")
-    st.markdown(html, unsafe_allow_html=True)
-    ```
-    
-    This will display a purple gradient card showing:
-    👤 Signed in as
-    Alice Smith
-    alice@example.com
+    Format intensity value with emoji indicator.
     
     Args:
-        user_name: The user's display name (e.g., "John Doe")
-        user_email: The user's email address (e.g., "john@example.com")
+        intensity_value: String or None representing intensity level (e.g., 'low', 'medium', 'high')
     
     Returns:
-        A complete HTML string with inline CSS that can be rendered in Streamlit
-    
-    Note:
-        The HTML uses inline styles (style="...") which is simpler but less
-        maintainable than external CSS. For production apps, consider using
-        external stylesheets, but for simple cases like this, inline is fine.
+        Formatted string with emoji and capitalized intensity (e.g., "🟢 Low") or "N/A"
     """
-    # Streamlit sanitizes HTML unless unsafe_allow_html=True
-    # Only trusted strings from this helper are rendered, which is why the markup is centralized
+    if not intensity_value:
+        return "N/A"
     
-    # Build outer container style
-    outer_style = (
-        "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); "
-        "padding: 20px; "
-        "border-radius: 12px; "
-        "margin-bottom: 16px; "
-        "box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
-    )
-    
-    # Build header style
-    header_style = (
-        "color: white; "
-        "font-size: 14px; "
-        "font-weight: 600; "
-        "margin-bottom: 8px;"
-    )
-    
-    # Build name style
-    name_style = (
-        "color: white; "
-        "font-size: 16px; "
-        "font-weight: 700; "
-        "margin-bottom: 4px;"
-    )
-    
-    # Build email style
-    email_style = (
-        "color: rgba(255,255,255,0.8); "
-        "font-size: 13px;"
-    )
-    
-    # Build HTML string
-    html = f"""
-    <div style="{outer_style}">
-        <div style="{header_style}">
-            👤 Signed in as
-        </div>
-        <div style="{name_style}">
-            {user_name}
-        </div>
-        <div style="{email_style}">
-            {user_email}
-        </div>
-    </div>
-    """
+    intensity = intensity_value.capitalize()
+    color_map = {'Low': '🟢', 'Medium': '🟡', 'High': '🔴'}
+    color_emoji = color_map.get(intensity, '⚪')
+    return f"{color_emoji} {intensity}"
 
-    return html
+
+def _format_list_display(items, max_items=2, show_count=True, extract_name=None):
+    """
+    Generic helper function to format lists for display.
+    
+    Args:
+        items: List of items to format
+        max_items: Maximum number of items to show
+        show_count: If True, show "+X" count when more items exist
+        extract_name: Optional function to extract name from item (for dicts)
+    
+    Returns:
+        Formatted string or "N/A" if empty
+    """
+    if not items:
+        return "N/A"
+    
+    formatted_items = []
+    display_items = items[:max_items]
+    
+    for item in display_items:
+        if extract_name:
+            name = extract_name(item)
+        else:
+            name = str(item) if item else None
+        
+        if name:
+            # Capitalize strings, but preserve already-formatted names
+            if isinstance(name, str):
+                formatted_items.append(name.capitalize())
+            else:
+                formatted_items.append(str(name))
+    
+    if show_count and len(items) > max_items:
+        formatted_items.append(f"+{len(items) - max_items}")
+    
+    return ', '.join(formatted_items)
+
+
+def format_focus_display(focus_list):
+    """
+    Format focus list for display (shows max 2 items + count if more).
+    
+    Args:
+        focus_list: List of focus area strings (e.g., ['strength', 'endurance'])
+    
+    Returns:
+        Formatted string (e.g., "Strength, Endurance" or "Strength, Endurance +2")
+    """
+    return _format_list_display(focus_list, max_items=2, show_count=True)
+
+
+def format_setting_display(setting_list):
+    """
+    Format setting list for display (shows max 2 items).
+    
+    Args:
+        setting_list: List of setting strings (e.g., ['solo', 'team'])
+    
+    Returns:
+        Formatted string (e.g., "Solo, Team")
+    """
+    return _format_list_display(setting_list, max_items=2, show_count=False)
+
+
+def format_trainers_display(trainers_list):
+    """
+    Format trainers list for display (shows max 2 names + count if more).
+    
+    Args:
+        trainers_list: List of trainer dictionaries with 'name' key or strings
+    
+    Returns:
+        Formatted string (e.g., "John Doe, Jane Smith" or "John Doe, Jane Smith +3")
+    """
+    def extract_trainer_name(item):
+        if isinstance(item, dict):
+            return item.get('name', '')
+        return str(item) if item else None
+    
+    return _format_list_display(trainers_list, max_items=2, show_count=True, extract_name=extract_trainer_name)
+
+
+def create_offer_metadata_df(offer, match_score=None, include_trainers=None, upcoming_count=None):
+    """
+    Create a pandas DataFrame with offer metadata for display.
+    
+    This function formats all offer metadata (intensity, focus, setting, trainers)
+    and creates a single-row DataFrame suitable for display in Streamlit.
+    
+    Args:
+        offer: Dictionary containing offer data with keys:
+            - 'intensity': Intensity level string
+            - 'focus': List of focus areas
+            - 'setting': List of settings
+            - 'trainers': List of trainer dictionaries or strings
+        match_score: Optional match score (0-100) to include in the DataFrame
+        include_trainers: Optional boolean to explicitly control trainer inclusion.
+            If None, trainers are included when match_score is provided.
+        upcoming_count: Optional count of upcoming events to include
+    
+    Returns:
+        pandas DataFrame with single row containing formatted metadata
+    """
+    # Format intensity
+    intensity_value = offer.get('intensity') or ''
+    intensity_display = format_intensity_display(intensity_value)
+    
+    # Format focus
+    focus_display = format_focus_display(offer.get('focus'))
+    
+    # Format setting
+    setting_display = format_setting_display(offer.get('setting'))
+    
+    # Format trainers
+    trainers_display = format_trainers_display(offer.get('trainers', []))
+    
+    # Build DataFrame columns
+    columns = {}
+    
+    if match_score is not None:
+        columns['Match'] = [f"{match_score:.0f}%"]
+    
+    columns['Intensity'] = [intensity_display]
+    columns['Focus'] = [focus_display]
+    columns['Setting'] = [setting_display]
+    
+    # Include upcoming count if provided
+    if upcoming_count is not None:
+        columns['Upcoming'] = [upcoming_count if upcoming_count > 0 else 0]
+    
+    # Include trainers based on include_trainers flag or match_score presence
+    if include_trainers is None:
+        include_trainers = match_score is not None
+    
+    if include_trainers:
+        columns['Trainers'] = [trainers_display]
+    
+    return pd.DataFrame(columns)
+
+
+def parse_event_datetime(datetime_string):
+    """
+    Parse an ISO format datetime string from event data.
+    
+    Handles timezone conversion by replacing 'Z' with '+00:00' for proper
+    datetime parsing. This is needed because some databases return 'Z' format
+    which Python's fromisoformat() doesn't handle directly.
+    
+    Args:
+        datetime_string: ISO format datetime string (may include 'Z' timezone)
+    
+    Returns:
+        datetime object
+    
+    Example:
+        parse_event_datetime("2025-01-15T10:30:00Z") -> datetime(2025, 1, 15, 10, 30, 0)
+    """
+    if isinstance(datetime_string, str):
+        # Replace 'Z' with '+00:00' for proper timezone handling
+        datetime_clean = datetime_string.replace('Z', '+00:00')
+        return datetime.fromisoformat(datetime_clean)
+    return datetime_string
+
+
+def format_weekday(datetime_obj, abbreviated=False):
+    """
+    Format weekday from a datetime object.
+    
+    Args:
+        datetime_obj: datetime object
+        abbreviated: If True, returns abbreviated form (Mon, Tue, etc.)
+                    If False, returns full name (Monday, Tuesday, etc.)
+    
+    Returns:
+        String with weekday name
+    
+    Example:
+        format_weekday(datetime(2025, 1, 15), abbreviated=True) -> "Wed"
+        format_weekday(datetime(2025, 1, 15), abbreviated=False) -> "Wednesday"
+    """
+    weekday_name = datetime_obj.strftime('%A')
+    
+    if abbreviated:
+        weekday_abbreviations = {
+            'Monday': 'Mon',
+            'Tuesday': 'Tue',
+            'Wednesday': 'Wed',
+            'Thursday': 'Thu',
+            'Friday': 'Fri',
+            'Saturday': 'Sat',
+            'Sunday': 'Sun'
+        }
+        return weekday_abbreviations.get(weekday_name, weekday_name)
+    
+    return weekday_name
+
+
+def format_time_range(start_dt, end_dt=None):
+    """
+    Format time or time range from datetime objects.
+    
+    Args:
+        start_dt: datetime object for start time
+        end_dt: Optional datetime object for end time
+    
+    Returns:
+        String with formatted time (e.g., "10:30" or "10:30 - 12:00")
+    
+    Example:
+        format_time_range(datetime(2025, 1, 15, 10, 30)) -> "10:30"
+        format_time_range(datetime(2025, 1, 15, 10, 30), datetime(2025, 1, 15, 12, 0)) -> "10:30 - 12:00"
+    """
+    start_time_str = start_dt.strftime('%H:%M')
+    
+    if end_dt:
+        end_time_str = end_dt.strftime('%H:%M')
+        return f"{start_time_str} - {end_time_str}"
+    
+    return start_time_str
+
+
+def get_match_score_style(match_score):
+    """
+    Get CSS style string for match score badge based on score value.
+    
+    Args:
+        match_score: Numeric score (0-100)
+    
+    Returns:
+        CSS style string for the badge
+    
+    Example:
+        style = get_match_score_style(95)  # Returns green style
+        style = get_match_score_style(75)  # Returns yellow style
+        style = get_match_score_style(50)  # Returns gray style
+    """
+    if match_score >= 90:
+        return 'background-color: #dcfce7; color: #166534;'
+    elif match_score >= 70:
+        return 'background-color: #fef9c3; color: #854d0e;'
+    else:
+        return 'background-color: #f3f4f6; color: #374151;'
+
+
+def render_user_avatar(user_name, user_picture=None, size='large'):
+    """
+    Render user avatar (image or initials) in Streamlit.
+    
+    Args:
+        user_name: User's name (for generating initials)
+        user_picture: Optional URL or path to user picture
+        size: 'large' (default) or 'small' - affects heading size
+    
+    Example:
+        render_user_avatar("John Doe", "https://example.com/pic.jpg")
+        render_user_avatar("Jane Smith")  # Shows initials
+    """
+    if user_picture and str(user_picture).startswith('http'):
+        if size == 'small':
+            st.image(user_picture, width=120)
+        else:
+            st.image(user_picture)
+    else:
+        name_words = user_name.split()[:2] if user_name else []
+        initials = ''.join([word[0].upper() for word in name_words if word]) if name_words else "U"
+        
+        if size == 'small':
+            st.markdown(f"## {initials}")
+        else:
+            st.markdown(f"# {initials}")
+
+
+def convert_events_to_table_data(events, abbreviated_weekday=True, include_status=False, include_sport=False, include_trainers=False):
+    """
+    Convert list of event dictionaries to table-ready data format.
+    
+    This function handles parsing datetime strings, formatting times and weekdays,
+    and creating a consistent structure for displaying events in Streamlit dataframes.
+    
+    Args:
+        events: List of event dictionaries with 'start_time', 'end_time', etc.
+        abbreviated_weekday: If True, use abbreviated weekday (e.g., "Mon"), else full name
+        include_status: If True, include 'status' field (Active/Cancelled)
+        include_sport: If True, include 'sport' field
+        include_trainers: If True, include 'trainers' field
+    
+    Returns:
+        List of dictionaries ready for st.dataframe()
+    
+    Example:
+        events = [{'start_time': '2025-01-15T10:00:00Z', 'end_time': '2025-01-15T12:00:00Z', ...}]
+        table_data = convert_events_to_table_data(events, abbreviated_weekday=True)
+        st.dataframe(table_data)
+    """
+    table_data = []
+    for event in events:
+        start_dt = parse_event_datetime(str(event.get('start_time')))
+        end_time = event.get('end_time')
+        
+        if end_time:
+            end_dt = parse_event_datetime(str(end_time))
+            time_val = format_time_range(start_dt, end_dt)
+        else:
+            time_val = format_time_range(start_dt)
+        
+        weekday = format_weekday(start_dt, abbreviated=abbreviated_weekday)
+        
+        row = {
+            'date': start_dt.date(),
+            'time': time_val,
+            'weekday': weekday,
+            'location': event.get('location_name', 'N/A')
+        }
+        
+        if include_status:
+            if event.get('canceled'):
+                row['status'] = "Cancelled"
+            else:
+                row['status'] = "Active"
+        
+        if include_sport:
+            row['sport'] = event.get('sport_name', 'Course')
+        
+        if include_trainers:
+            trainers = event.get('trainers', [])
+            row['trainers'] = ", ".join(str(t) for t in trainers) if trainers else "N/A"
+        
+        table_data.append(row)
+    
+    return table_data
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)
 # All outputs generated by such systems were reviewed, validated, and modified by the author.

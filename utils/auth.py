@@ -1,65 +1,51 @@
-# Authentication helpers for Streamlit using Google OIDC and Supabase
-# This module provides functions to manage login, logout, and synchronization
-# of the authenticated user with Supabase
+"""
+================================================================================
+AUTHENTICATION MODULE
+================================================================================
+
+Purpose: Authentication helpers for Streamlit using Google OIDC and Supabase.
+Provides functions to manage login, logout, and synchronization of authenticated
+users with Supabase.
+================================================================================
+"""
 
 import streamlit as st
-import os
 from datetime import datetime, timezone
 
-
-# Check if running in production (Streamlit Cloud)
-# This helps ensure OAuth redirect URIs are configured correctly
-def is_production():
-    """
-    Check if the app is running in production (Streamlit Cloud).
-    
-    Returns True if running on Streamlit Cloud, False otherwise.
-    """
-    # Streamlit Cloud sets this environment variable
-    streamlit_cloud = os.environ.get("STREAMLIT_CLOUD", "").lower() == "true"
-    
-    # If STREAMLIT_CLOUD is set, we're definitely in production
-    if streamlit_cloud:
-        return True
-    
-    # Fallback: check if we're not on localhost
-    # In production, the URL won't contain localhost
-    try:
-        # Check if we can access the query params (which contain the full URL in some cases)
-        # Or check environment variables that might indicate production
-        hostname = os.environ.get("HOSTNAME", "")
-        if "streamlit.app" in hostname or "streamlit.io" in hostname:
-            return True
-        
-        # Check if we're definitely on localhost
-        if "localhost" in hostname or "127.0.0.1" in hostname:
-            return False
-    except:
-        pass
-    
-    # Default: assume local development if we can't determine
-    return False
+# =============================================================================
+# AUTHENTICATION STATUS
+# =============================================================================
+# PURPOSE: Check if user is currently logged in
 
 
-# Check if a user is currently logged in
-# Streamlit automatically sets st.user.is_logged_in to True after successful login
 def is_logged_in():
+    """
+    Check if a user is currently logged in.
+    
+    WHY: Streamlit automatically sets st.user.is_logged_in to True after successful login.
+    """
     return st.user.is_logged_in
 
+# =============================================================================
+# SESSION MANAGEMENT
+# =============================================================================
+# PURPOSE: Functions for managing user session state
 
-# Clear all user-related data from Streamlit's session state
-# When a user logs out, all their data must be removed from the app's memory
-# Without clearing session state, the next user might see the previous user's filters
-# and selections, which is a privacy and security issue
 def clear_user_session():
-    # Streamlit re-runs the script on every interaction
-    # If session_state keys are not cleared, ghost filters from previous users may appear
-    # This explicit reset ensures clean state for each user session
+    """
+    Clear all user-related data from Streamlit's session state.
     
+    WHY: When a user logs out, all their data must be removed from the app's memory.
+    Without clearing session state, the next user might see the previous user's filters
+    and selections, which is a privacy and security issue.
+    
+    HOW: Clears filter states, app states, and cached data. Streamlit re-runs the script
+    on every interaction, so if session_state keys are not cleared, ghost filters from
+    previous users may appear.
+    """
     # Clear filter states
-    filter_keys = ['intensity', 'focus', 'setting', 'location', 'weekday', 'offers', 
-                   'search_text', 'date_start', 'date_end', 'start_time', 'end_time',
-                   'hide_cancelled', 'show_upcoming_only']
+    from utils.filters import get_filter_session_keys
+    filter_keys = get_filter_session_keys()
     for key in filter_keys:
         if key in st.session_state:
             del st.session_state[key]
@@ -71,96 +57,97 @@ def clear_user_session():
             del st.session_state[key]
     
     # Clear any cached data
-    if hasattr(st, 'cache_data'):
-        st.cache_data.clear()
-    if hasattr(st, 'cache_resource'):
-        st.cache_resource.clear()
+    for cache_attr in ('cache_data', 'cache_resource'):
+        if hasattr(st, cache_attr):
+            getattr(st, cache_attr).clear()
 
-
-# Perform a complete logout: clear data, log out, and refresh the UI
-# This does three things: clears session state, calls Streamlit's logout, and refreshes the page
-# All three steps are necessary for a complete logout to prevent data leakage
 def handle_logout():
+    """
+    Perform a complete logout: clear data, log out, and refresh the UI.
+    
+    WHY: This does three things: clears session state, calls Streamlit's logout, and
+    refreshes the page. All three steps are necessary for a complete logout to prevent
+    data leakage.
+    """
     clear_user_session()
     st.logout()
     st.rerun()
 
+# =============================================================================
+# USER INFORMATION
+# =============================================================================
+# PURPOSE: Functions for retrieving user information from authentication
 
-# Get the unique user identifier (OIDC "sub" claim)
-# "Sub" stands for "subject": it's a unique identifier provided by Google
-# This is part of the OIDC (OpenID Connect) standard
-# This ID is used to look up the user in the Supabase database and link their data
 def get_user_sub():
-    if is_logged_in():
-        return st.user.sub
-    return None
+    """
+    Get the unique user identifier (OIDC "sub" claim).
+    
+    WHY: "Sub" stands for "subject": it's a unique identifier provided by Google.
+    This is part of the OIDC (OpenID Connect) standard. This ID is used to look up
+    the user in the Supabase database and link their data.
+    """
+    return st.user.sub if is_logged_in() else None
 
-
-# Get the authenticated user's email address
-# This comes directly from Google's authentication system
 def get_user_email():
-    if is_logged_in():
-        return st.user.email
-    return None
+    """
+    Get the authenticated user's email address.
+    
+    WHY: This comes directly from Google's authentication system.
+    """
+    return st.user.email if is_logged_in() else None
 
-
-# Check if the user's authentication token has expired
-# When logging in, Google provides a token: a special code that proves authentication
-# Tokens expire for security reasons, so this must be checked periodically
 def check_token_expiry():
+    """
+    Check if the user's authentication token has expired.
+    
+    WHY: When logging in, Google provides a token: a special code that proves authentication.
+    Tokens expire for security reasons, so this must be checked periodically.
+    """
     if not is_logged_in():
         return
 
     # Check if the identity provider returned expiration information
-    # hasattr() checks if an object has a certain attribute before accessing it
-    if hasattr(st.user, 'expires_at'):
-        expires_at = st.user.expires_at
-        if expires_at:
-            # Compare current time with expiration time
-            current_time = datetime.now(timezone.utc)
-            if current_time > expires_at:
-                st.warning("Your session has expired. Please log in again.")
-                handle_logout()
+    expires_at = getattr(st.user, 'expires_at', None)
+    if expires_at and datetime.now(timezone.utc) > expires_at:
+        st.warning("Your session has expired. Please log in again.")
+        handle_logout()
 
-
-# Get all available user information from Streamlit's user object
-# Collects user information from Google authentication and packages it into a dictionary
 def get_user_info_dict():
+    """
+    Get all available user information from Streamlit's user object.
+    
+    WHY: Collects user information from Google authentication and packages it into a dictionary.
+    Use direct access for required fields. Optional fields use getattr() with None as default
+    to avoid errors.
+    """
     if not is_logged_in():
         return None
 
-    # Use direct access for required fields
-    # Optional fields are checked with hasattr() to avoid errors if they don't exist
-    result = {
+    return {
         'sub': st.user.sub,
         'email': st.user.email,
         'name': st.user.name,
-        'is_logged_in': True
+        'is_logged_in': True,
+        'given_name': getattr(st.user, 'given_name', None),
+        'family_name': getattr(st.user, 'family_name', None),
+        'picture': getattr(st.user, 'picture', None)
     }
-    
-    # Add optional fields if they exist
-    if hasattr(st.user, 'given_name'):
-        result['given_name'] = st.user.given_name
-    else:
-        result['given_name'] = None
-    
-    if hasattr(st.user, 'family_name'):
-        result['family_name'] = st.user.family_name
-    else:
-        result['family_name'] = None
-    
-    if hasattr(st.user, 'picture'):
-        result['picture'] = st.user.picture
-    else:
-        result['picture'] = None
-    
-    return result
 
+# =============================================================================
+# DATABASE SYNCHRONIZATION
+# =============================================================================
+# PURPOSE: Functions for syncing user data with Supabase
 
-# Save or update user information in the Supabase database
-# When a user logs in with Google, their information is retrieved and stored in the database
-# Storing user info in the database enables features like favorites and user profiles
 def sync_user_to_supabase():
+    """
+    Save or update user information in the Supabase database.
+    
+    WHY: When a user logs in with Google, their information is retrieved and stored in the database.
+    Storing user info in the database enables features like favorites and user profiles.
+    
+    HOW: This uses an "upsert" pattern (update if exists, insert if new). If name is not available,
+    use email as fallback. Database operations can fail, so the result is checked.
+    """
     from utils.db import create_or_update_user
     
     user_info = get_user_info_dict()
@@ -168,31 +155,16 @@ def sync_user_to_supabase():
         return
     
     # Prepare user data with last_login timestamp
-    # This uses an "upsert" pattern (update if exists, insert if new)
-    user_sub = user_info.get("sub")
-    user_email = user_info.get("email")
-    user_name = user_info.get("name")
-    user_picture = user_info.get("picture")
-    
-    # If name is not available, use email as fallback
-    if not user_name:
-        user_name = user_email
-    
-    last_login = datetime.now()
-    last_login_string = last_login.isoformat()
-    
     user_data = {
-        "sub": user_sub,
-        "email": user_email,
-        "name": user_name,
-        "picture": user_picture,
-        "last_login": last_login_string
+        "sub": user_info["sub"],
+        "email": user_info["email"],
+        "name": user_info.get("name") or user_info["email"],
+        "picture": user_info.get("picture"),
+        "last_login": datetime.now().isoformat()
     }
     
     # Attempt to save to database
-    # Database operations can fail, so the result is checked
-    result = create_or_update_user(user_data)
-    if result is None:
+    if create_or_update_user(user_data) is None:
         st.warning("⚠️ Error synchronizing user")
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)

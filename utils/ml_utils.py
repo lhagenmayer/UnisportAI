@@ -1,25 +1,11 @@
-"""Machine Learning utilities for recommendations.
+"""
+================================================================================
+MACHINE LEARNING UTILITIES
+================================================================================
 
-This module provides ML model loading and recommendation functions using
-K-Nearest Neighbors (KNN) algorithm.
+Purpose: ML model loading and recommendation functions using K-Nearest Neighbors (KNN) algorithm.
 
-WHAT IS MACHINE LEARNING?
--------------------------
-Machine Learning (ML) is a way for computers to learn patterns from data
-and make predictions. In this app, ML is used to recommend sports that
-match a user's preferences.
-
-WHAT IS KNN?
-------------
-K-Nearest Neighbors (KNN) is a simple ML algorithm that finds items similar
-to what you're looking for. Think of it like:
-- "Find me sports similar to what I like"
-- The algorithm looks at features (intensity, focus, setting) and finds
-  sports with similar features
-- It returns the "nearest neighbors" (most similar sports)
-
-HOW IT WORKS IN THIS APP:
-------------------------
+HOW IT WORKS:
 1. Each sport has 13 features (balance, strength, intensity, etc.)
 2. User selects preferences (e.g., "I like high-intensity strength training")
 3. Preferences are converted to a 13-dimensional feature vector
@@ -27,25 +13,11 @@ HOW IT WORKS IN THIS APP:
 5. The most similar sports are returned as recommendations
 
 KEY CONCEPTS:
-------------
 - Feature Vector: A list of numbers representing a sport's characteristics
 - Distance: How similar two feature vectors are (lower = more similar)
 - Match Score: Converted distance to percentage (100% = perfect match)
 - Model: Pre-trained ML model saved to disk (knn_recommender.joblib)
-
-EXAMPLE:
---------
-```python
-# Get ML recommendations:
-recommendations = get_ml_recommendations(
-    selected_focus=['strength'],
-    selected_intensity=['high'],
-    selected_setting=['solo'],
-    min_match_score=75,  # Only show 75%+ matches
-    max_results=10
-)
-# Result: List of sports similar to user's preferences
-```
+================================================================================
 """
 
 import streamlit as st
@@ -56,11 +28,11 @@ from datetime import datetime
 
 # Import filter and db functions at module level to avoid repeated imports
 try:
-    from .filters import filter_offers, filter_events
+    from .filters import filter_events, apply_soft_filters_to_score
     from .db import get_events
 except ImportError:
     # Fallback for when running as script or if relative imports fail
-    from utils.filters import filter_offers, filter_events
+    from utils.filters import filter_events, apply_soft_filters_to_score
     from utils.db import get_events
 
 # Feature order (13 features)
@@ -71,6 +43,15 @@ ML_FEATURE_COLUMNS = [
     'setting_team', 'setting_fun', 'setting_duo',
     'setting_solo', 'setting_competitive'
 ]
+
+# Intensity mapping values
+INTENSITY_VALUES = {'low': 0.33, 'moderate': 0.67, 'high': 1.0}
+DEFAULT_INTENSITY = 0.67  # Used when intensity value is not recognized
+
+# Feature lists
+FOCUS_FEATURES = ['balance', 'flexibility', 'coordination', 'relaxation', 
+                  'strength', 'endurance', 'longevity']
+SETTING_FEATURES = ['team', 'fun', 'duo', 'solo', 'competitive']
 
 ML_MODEL_PATH = Path(__file__).resolve().parent.parent / "ml" / "models" / "knn_recommender.joblib"
 
@@ -227,47 +208,26 @@ def build_user_preferences_from_filters(selected_focus, selected_intensity, sele
     preferences = {}
     
     # Normalize inputs to lowercase for matching
-    focus_lower = []
-    if selected_focus:
-        for f in selected_focus:
-            focus_lower.append(f.lower())
-    
-    setting_lower = []
-    if selected_setting:
-        for s in selected_setting:
-            setting_lower.append(s.lower())
+    focus_lower = [f.lower() for f in (selected_focus or [])]
+    setting_lower = [s.lower() for s in (selected_setting or [])]
     
     # Focus features (7 binary)
-    focus_features = ['balance', 'flexibility', 'coordination', 'relaxation', 
-                     'strength', 'endurance', 'longevity']
-    for feature in focus_features:
-        if feature in focus_lower:
-            preferences[feature] = 1.0
-        else:
-            preferences[feature] = 0.0
+    for feature in FOCUS_FEATURES:
+        preferences[feature] = 1.0 if feature in focus_lower else 0.0
     
-    # Intensity (1 continuous) average if multiple selected
+    # Intensity (1 continuous) - average if multiple selected
     if selected_intensity:
-        intensity_map = {'low': 0.33, 'moderate': 0.67, 'high': 1.0}
-        intensity_values = []
-        for i in selected_intensity:
-            intensity_lower = i.lower()
-            intensity_value = intensity_map.get(intensity_lower, 0.67)
-            intensity_values.append(intensity_value)
-        total_intensity = sum(intensity_values)
-        count_intensity = len(intensity_values)
-        preferences['intensity'] = total_intensity / count_intensity
+        intensity_values = [
+            INTENSITY_VALUES.get(i.lower(), DEFAULT_INTENSITY)
+            for i in selected_intensity
+        ]
+        preferences['intensity'] = sum(intensity_values) / len(intensity_values)
     else:
         preferences['intensity'] = 0.0
     
     # Setting features (5 binary)
-    setting_features = ['team', 'fun', 'duo', 'solo', 'competitive']
-    for feature in setting_features:
-        setting_key = f'setting_{feature}'
-        if feature in setting_lower:
-            preferences[setting_key] = 1.0
-        else:
-            preferences[setting_key] = 0.0
+    for feature in SETTING_FEATURES:
+        preferences[f'setting_{feature}'] = 1.0 if feature in setting_lower else 0.0
     
     return preferences
 
@@ -355,12 +315,8 @@ def get_ml_recommendations(selected_focus, selected_intensity, selected_setting,
     )
     
     # Build feature vector
-    feature_values = []
-    for col in ML_FEATURE_COLUMNS:
-        value = user_prefs.get(col, 0.0)
-        feature_values.append(value)
-    user_vector = np.array(feature_values)
-    user_vector = user_vector.reshape(1, -1)
+    feature_values = [user_prefs.get(col, 0.0) for col in ML_FEATURE_COLUMNS]
+    user_vector = np.array(feature_values).reshape(1, -1)
     
     # Scale
     user_vector_scaled = scaler.transform(user_vector)
@@ -370,33 +326,28 @@ def get_ml_recommendations(selected_focus, selected_intensity, selected_setting,
     distances, indices = knn_model.kneighbors(user_vector_scaled, n_neighbors=n_sports)
     
     # Build recommendations
+    exclude_sports = set(exclude_sports or [])
     recommendations = []
-    if exclude_sports is None:
-        exclude_sports = []
     
     distances_list = distances[0]
     indices_list = indices[0]
-    # Use enumerate() instead of range(len()) for better Pythonic code
-    for i, distance in enumerate(distances_list):
-        idx = indices_list[i]
+    
+    for distance, idx in zip(distances_list, indices_list):
         sport_name = sports_df.iloc[idx]['Angebot']
         
         # Skip if in exclude list
         if sport_name in exclude_sports:
             continue
         
-        # Convert distance to similarity score (0 100%)
-        one_minus_distance = 1 - distance
-        match_score = one_minus_distance * 100
+        # Convert distance to similarity score (0-100%)
+        match_score = (1 - distance) * 100
         
         # Only include if above threshold
         if match_score >= min_match_score:
-            rounded_score = round(match_score, 1)
-            sport_dict = sports_df.iloc[idx].to_dict()
             recommendations.append({
                 'sport': sport_name,
-                'match_score': rounded_score,
-                'item': sport_dict
+                'match_score': round(match_score, 1),
+                'item': sports_df.iloc[idx].to_dict()
             })
         
         # Stop if enough recommendations found
@@ -405,227 +356,6 @@ def get_ml_recommendations(selected_focus, selected_intensity, selected_setting,
     
     return recommendations
 
-
-def get_merged_recommendations(
-    sports_data,
-    selected_focus=None,
-    selected_intensity=None,
-    selected_setting=None,
-    search_text="",
-    show_upcoming_only=True,
-    event_filters=None,
-    min_match_score=0
-):
-    """
-    Get merged recommendations combining KNN ML recommendations and filtered results.
-    
-    This function creates a unified list of sports recommendations by:
-    1. Getting KNN recommendations for all sports (based on intensity/focus/setting)
-    2. Getting filtered results (based on all filters including intensity/focus/setting)
-    3. Merging both lists (keeping higher score when sport appears in both)
-    4. Applying additional filters (search_text, show_upcoming_only, event filters) with score reduction
-    5. Returning sorted list ready for use in Top Recommendations, Graph, and Sports Overview
-    
-    WHAT DOES THIS DO?
-    ------------------
-    Creates a single source of truth for sports recommendations that combines:
-    - ML-based similarity scores (from KNN model)
-    - Filter-based matching (exact matches for intensity/focus/setting)
-    - Additional filter adjustments (soft filters that reduce score instead of excluding)
-    
-    FILTER LOGIC:
-    -------------
-    - Hard filters (intensity/focus/setting): Applied via filter_offers() - exact matches only
-    - Soft filters (applied with score reduction):
-      - show_upcoming_only: -20% if no future events
-      - search_text: -30% if not in sport name
-      - event_filters: -15% if no matching events
-    
-    EXAMPLE:
-    --------
-    ```python
-    recommendations = get_merged_recommendations(
-        sports_data=all_sports,
-        selected_focus=['strength'],
-        selected_intensity=['high'],
-        selected_setting=['solo'],
-        search_text="yoga",
-        show_upcoming_only=True,
-        event_filters={
-            'weekday': ['Monday', 'Wednesday'],
-            'date_start': date(2025, 1, 1),
-            'date_end': date(2025, 12, 31)
-        }
-    )
-    ```
-    
-    Args:
-        sports_data: List of all sport offer dictionaries
-        selected_focus: List of focus areas (e.g., ['strength', 'endurance'])
-        selected_intensity: List of intensity levels (e.g., ['high'])
-        selected_setting: List of settings (e.g., ['solo', 'team'])
-        search_text: Text to search in sport names (soft filter)
-        show_upcoming_only: If True, reduce score for sports without future events
-        event_filters: Dictionary with optional keys:
-            - weekday: List of weekdays
-            - date_start: Start date
-            - date_end: End date
-            - time_start: Start time
-            - time_end: End time
-            - location: List of location names
-        min_match_score: Minimum match score threshold (0-100)
-    
-    Returns:
-        List of dictionaries, each containing:
-            - 'name': Sport name
-            - 'match_score': Match percentage (0-100)
-            - 'offer': Complete sport offer dictionary
-        Sorted by match_score descending
-    """
-    # STEP 1: Get filtered results (hard filters: intensity/focus/setting)
-    filtered_results = filter_offers(
-        sports_data,
-        show_upcoming_only=False,  # We'll handle this separately with score reduction
-        search_text="",  # We'll handle this separately with score reduction
-        intensity=selected_intensity if selected_intensity else None,
-        focus=selected_focus if selected_focus else None,
-        setting=selected_setting if selected_setting else None,
-        min_match_score=0,
-        max_results=100000  # Get all filtered results
-    )
-    
-    # STEP 2: Get KNN recommendations for ALL sports (not just top N)
-    model_data = load_knn_model()
-    merged_dict = {}
-    
-    if model_data:
-        knn_model = model_data['knn_model']
-        scaler = model_data['scaler']
-        sports_df = model_data['sports_df']
-        
-        # Build user preferences from filters
-        user_prefs = build_user_preferences_from_filters(
-            selected_focus, selected_intensity, selected_setting
-        )
-        
-        # Build feature vector
-        feature_values = []
-        for col in ML_FEATURE_COLUMNS:
-            value = user_prefs.get(col, 0.0)
-            feature_values.append(value)
-        user_vector = np.array(feature_values)
-        user_vector = user_vector.reshape(1, -1)
-        
-        # Scale
-        user_vector_scaled = scaler.transform(user_vector)
-        
-        # Get all sports as neighbors
-        n_sports = len(sports_df)
-        distances, indices = knn_model.kneighbors(user_vector_scaled, n_neighbors=n_sports)
-        
-        # Add all KNN recommendations to merged dict
-        for distance, idx in zip(distances[0], indices[0]):
-            sport_name = sports_df.iloc[idx]['Angebot']
-            match_score = (1 - distance) * 100
-            
-            # Find full offer data
-            matching_offer = None
-            for offer in sports_data:
-                if offer.get('name') == sport_name:
-                    matching_offer = offer.copy()
-                    break
-            
-            if matching_offer:
-                merged_dict[sport_name] = {
-                    'name': sport_name,
-                    'match_score': round(match_score, 1),
-                    'offer': matching_offer
-                }
-    
-    # STEP 3: Merge filtered results (keep higher score when sport appears in both)
-    for offer in filtered_results:
-        sport_name = offer.get('name')
-        if sport_name:
-            filtered_score = offer.get('match_score', 100.0)
-            
-            if sport_name in merged_dict:
-                # Sport appears in both - keep higher score
-                existing_score = merged_dict[sport_name]['match_score']
-                if filtered_score > existing_score:
-                    merged_dict[sport_name]['match_score'] = filtered_score
-            else:
-                # Sport only in filtered results - add it
-                merged_dict[sport_name] = {
-                    'name': sport_name,
-                    'match_score': filtered_score,
-                    'offer': offer.copy()
-                }
-    
-    # STEP 4: Apply soft filters with score reduction
-    # Load events if event filters are provided
-    all_events = None
-    if event_filters:
-        try:
-            all_events = get_events()
-        except Exception:
-            # If events can't be loaded, continue without event filtering
-            all_events = []
-    
-    final_recommendations = []
-    for sport_name, sport_data in merged_dict.items():
-        offer = sport_data['offer']
-        match_score = sport_data['match_score']
-        
-        # Apply show_upcoming_only filter (soft: reduce score by 20%)
-        if show_upcoming_only:
-            future_events_count = offer.get('future_events_count', 0)
-            if future_events_count == 0:
-                match_score = max(0, match_score - 20)
-        
-        # Apply search_text filter (soft: reduce score by 30%)
-        if search_text:
-            offer_name = offer.get('name', '').lower()
-            search_text_lower = search_text.lower()
-            if search_text_lower not in offer_name:
-                match_score = max(0, match_score - 30)
-        
-        # Apply event filters (soft: reduce score by 15% if no matching events)
-        if event_filters and all_events:
-            # Get events for this sport
-            sport_events = [e for e in all_events if e.get('sport_name') == sport_name]
-            
-            if sport_events:
-                # Filter events based on event_filters
-                filtered_sport_events = filter_events(
-                    sport_events,
-                    weekday_filter=event_filters.get('weekday'),
-                    date_start=event_filters.get('date_start'),
-                    date_end=event_filters.get('date_end'),
-                    time_start=event_filters.get('time_start'),
-                    time_end=event_filters.get('time_end'),
-                    location_filter=event_filters.get('location'),
-                    hide_cancelled=True
-                )
-                
-                # If no matching events, reduce score
-                if not filtered_sport_events:
-                    match_score = max(0, match_score - 15)
-            else:
-                # No events at all for this sport, reduce score
-                match_score = max(0, match_score - 15)
-        
-        # Only include if above minimum threshold
-        if match_score >= min_match_score:
-            final_recommendations.append({
-                'name': sport_name,
-                'match_score': round(match_score, 1),
-                'offer': offer
-            })
-    
-    # STEP 5: Sort by match score (highest first)
-    final_recommendations = sorted(final_recommendations, key=lambda x: x['match_score'], reverse=True)
-    
-    return final_recommendations
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)
 # All outputs generated by such systems were reviewed, validated, and modified by the author.

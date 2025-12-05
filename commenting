@@ -1,0 +1,275 @@
+"""
+================================================================================
+COMMENTING STANDARDS GUIDE FOR UNISPORTAI
+================================================================================
+
+PHILOSOPHY:
+Comments sollten nicht nur beschreiben WAS Code tut, sondern auch WARUM
+Entscheidungen getroffen wurden und WIE komplexe Logik funktioniert.
+
+LANGUAGE REQUIREMENT:
+IMPORTANT: All comments, docstrings, and documentation in code must be in ENGLISH.
+This includes:
+- File-level header comments
+- Module-level docstrings
+- Function docstrings
+- Inline comments
+- Section dividers with PURPOSE comments
+- Error handling explanations
+- All code documentation
+
+Only user-facing strings (e.g., UI labels, error messages shown to users) may be
+in other languages if needed for localization.
+
+================================================================================
+1. FILE-LEVEL HEADER COMMENTS
+================================================================================
+
+Jede größere Datei sollte einen Header-Kommentar haben mit:
+- Zweck der Datei
+- Hauptfunktionen/Features
+- Wie sie in die Architektur passt
+
+BEISPIEL:
+\"""
+================================================================================
+UNISPORTAI STREAMLIT APPLICATION
+================================================================================
+
+Purpose: Main entry point for the UnisportAI application.
+Features: Content-Layer, Filter/ML-Layer, Social-Layer, Analytics-Layer.
+Architecture: Browser → Streamlit → utils modules → Supabase
+================================================================================
+\"""
+
+
+================================================================================
+2. MODULE-LEVEL DOCSTRINGS
+================================================================================
+
+Module sollten einen Docstring haben, der erklärt:
+- Was das Modul macht
+- Wichtige Konzepte (bei komplexen Modulen)
+- Beispiel-Nutzung
+
+BEISPIEL:
+\"""Filtering utilities for offers and events.
+
+This module filters sport activities based on user criteria.
+
+Concepts:
+- Hard Filters: Exact match (e.g. sport name, location)
+- Date/Time Filters: Check if event is within date/time range
+- Multiple Filters: All filters must match (AND logic)
+\"""
+
+
+================================================================================
+3. SECTION DIVIDERS
+================================================================================
+
+Verwende klare Abschnittstrenner:
+
+# =============================================================================
+# PART 1: IMPORTS & CONFIGURATION
+# =============================================================================
+# PURPOSE: Import necessary libraries and configuration
+
+
+================================================================================
+4. FUNCTION-LEVEL COMMENTS
+================================================================================
+
+Funktionen sollten erklären:
+- WAS die Funktion tut
+- WARUM Design-Entscheidungen getroffen wurden (wenn nicht offensichtlich)
+- WIE komplexe Logik funktioniert (Schritt-für-Schritt bei komplexen Funktionen)
+
+BEISPIEL (einfach):
+# Loads all offers from vw_offers_complete view
+# Cached for 300 seconds, as offers rarely change
+@st.cache_data(ttl=300)
+def get_offers_complete():
+    # Database queries can fail, therefore try/except
+    try:
+        ...
+
+BEISPIEL (komplex):
+def get_ml_recommendations(...):
+    \"""
+    Get sport recommendations using machine learning (KNN algorithm).
+    
+    How it works:
+    1. Load trained KNN model
+    2. Convert user filters to feature vector
+    3. Normalize vector
+    4. Find similar sports with KNN
+    5. Convert distances to similarity scores (0-100%)
+    
+    Args:
+        selected_focus: List of focus areas
+        ...
+    Returns:
+        List of recommendation dictionaries with 'sport', 'match_score', 'item'
+    \"""
+
+
+================================================================================
+5. INLINE COMMENTS
+================================================================================
+
+Inline-Kommentare erklären:
+- WARUM ein spezifischer Ansatz gewählt wurde
+- WAS nicht-offensichtliches Verhalten bedeutet
+- WIE Edge Cases behandelt werden
+
+BEISPIELE:
+# IMPORTANT: Must be first Streamlit command
+st.set_page_config(...)
+
+# Note: Filtering in Python, as Supabase views don't support all filter operations
+if sport_name:
+    events = [e for e in events if e.get('sport_name') == sport_name]
+
+
+================================================================================
+6. IMPORT COMMENTS
+================================================================================
+
+Gruppiere Imports und kommentiere Gruppen:
+
+# Core Streamlit library
+import streamlit as st
+
+# Custom authentication functions
+from utils.auth import is_logged_in, sync_user_to_supabase, ...
+
+# Database functions
+from utils.db import get_supabase_client, ...
+
+
+================================================================================
+7. COMPLEX LOGIC & ERROR HANDLING
+================================================================================
+
+Bei komplexer Logik: Schritt-für-Schritt erklären
+Bei Error Handling: WARUM es nötig ist und WAS bei Fehlern passiert
+
+BEISPIEL:
+# STEP 1: Get filtered results
+filtered = filter_offers(...)
+
+# STEP 2: Merge with ML recommendations
+# Priority: Filtered results get higher scores
+if model_data:
+    ...
+
+# Database queries can fail, therefore try/except
+# On error: Return None (graceful degradation)
+try:
+    ...
+except Exception as e:
+    _handle_db_error(e, "load user")
+    return None
+
+
+================================================================================
+8. CACHING & PERFORMANCE
+================================================================================
+
+Erkläre Caching-Entscheidungen:
+
+# Cached for 300 seconds, as offers rarely change
+# Reduces database load and improves response time
+@st.cache_data(ttl=300)
+def get_offers_complete():
+    ...
+
+
+================================================================================
+9. PATTERN & ARCHITECTURE
+================================================================================
+
+Dokumentiere Design-Patterns:
+
+# IMPORTANT: Sidebar must be rendered once at module level
+# PATTERN: Render sidebar before tabs, read values from st.session_state in tabs
+with st.sidebar:
+    ...
+
+
+================================================================================
+10. CHECKLIST
+================================================================================
+
+Vor Commit prüfen:
+□ File-Header vorhanden (bei größeren Dateien)
+□ Module-Docstring vorhanden (bei utils-Modulen)
+□ Sections haben PURPOSE-Kommentare
+□ Funktionen erklären WAS/WARUM/WIE (bei komplexen Funktionen)
+□ Inline-Kommentare bei nicht-offensichtlichen Entscheidungen
+□ Imports gruppiert und kommentiert
+□ Error Handling erklärt
+□ Caching/Performance erklärt
+
+Qualität:
+□ Kommentare erklären WARUM, nicht nur WAS
+□ Plain Language (vermeide Jargon wenn möglich)
+□ Kontext für neue Entwickler
+□ Beispiele bei komplexen Konzepten
+□ All comments in English (see LANGUAGE REQUIREMENT above)
+
+
+================================================================================
+11. GOOD VS BAD EXAMPLES
+================================================================================
+
+BAD:
+# Get offers
+def get_offers_complete():
+    return conn.table("vw_offers_complete").select("*").execute()
+
+GOOD:
+# Loads all offers from vw_offers_complete view
+# Cached for 300 seconds, as offers rarely change
+@st.cache_data(ttl=300)
+def get_offers_complete():
+    # Database queries can fail, therefore try/except
+    try:
+        ...
+
+BAD:
+# Set x to 5
+x = 5
+
+GOOD:
+# Initialize match_score with 100.0 (perfect match) for offers without filters
+# Ensures all offers are displayed when no filters are set
+offer['match_score'] = 100.0
+
+
+================================================================================
+12. FINAL NOTES
+================================================================================
+
+WANN KOMMENTIEREN:
+✓ Komplexe Algorithmen oder Logik
+✓ Nicht-offensichtliche Design-Entscheidungen
+✓ Performance-Optimierungen
+✓ Error Handling Strategien
+✓ Architektur-Patterns
+✓ Edge Cases
+
+WANN NICHT KOMMENTIEREN:
+✗ Offensichtlicher Code (x = 5)
+✗ Self-documenting Funktionsnamen (get_user_by_id)
+✗ Redundante Kommentare die nur Code wiederholen
+
+PRINZIPIEN:
+- Kommentare sind für Menschen, nicht nur für Dokumentations-Generatoren
+- Schreibe als würdest du einem Junior-Entwickler erklären
+- Kommentare sollten "warum"-Fragen beantworten, nicht nur "was"-Fragen
+- Aktualisiere Kommentare wenn Code sich ändert
+
+================================================================================
+"""

@@ -1,15 +1,29 @@
-"""train_model.py
------------------
-Script to train and save the KNN sport recommender model.
-This script handles the training pipeline: load data from database, 
-train the model, and save it to disk for production use.
+"""
+================================================================================
+TRAIN KNN MODEL
+================================================================================
+
+Purpose: Script to train and save the KNN sport recommender model.
+Handles the training pipeline: load data from database, train the model, and
+save it to disk for production use.
+================================================================================
 """
 
 from ml.recommender import KNNSportRecommender
 from utils.db import get_ml_training_data_cli
 
+# =============================================================================
+# MODEL TRAINING
+# =============================================================================
+# PURPOSE: Train and save the KNN recommender model
+
 def train_and_save_model():
-    """Train the KNN recommender and save it for production use"""
+    """
+    Train the KNN recommender and save it for production use.
+    
+    HOW: Loads training data from database, creates and trains recommender,
+    then saves the complete model bundle to disk for instant loading in production.
+    """
     print("\n" + "="*60)
     print("KNN SPORT RECOMMENDER - MODEL TRAINING")
     print("="*60 + "\n")
@@ -19,15 +33,17 @@ def train_and_save_model():
     training_data = get_ml_training_data_cli()
     
     # Create and train recommender
-    recommender = KNNSportRecommender(n_neighbors=10)  # Create a new recommender that finds 10 similar sports
-    recommender.load_and_train(training_data)  # Train model with loaded data
+    # WHY: n_neighbors=10 finds 10 similar sports for recommendations
+    recommender = KNNSportRecommender(n_neighbors=10)
+    recommender.load_and_train(training_data)
     
     # Save the model (prepare for production deployment)
-    print("\n" + "="*60)  # Print visual separator to distinguish model saving section
+    # WHY: Persist complete trained model bundle to disk for instant loading in production Streamlit app
+    print("\n" + "="*60)
     from pathlib import Path
-    recommender.save_model(str(Path("ml/models/knn_recommender.joblib")))  # Persist complete trained model bundle to disk for instant loading in production Streamlit app
-    print("✅ KNN ML Model ready for production!")  # Confirm successful model training and saving ready for integration with web application
-    print("="*60 + "\n")  # Print closing visual separator for clean console output
+    recommender.save_model(str(Path("ml/models/knn_recommender.joblib")))
+    print("✅ KNN ML Model ready for production!")
+    print("="*60 + "\n")
 
 if __name__ == "__main__":
     train_and_save_model()

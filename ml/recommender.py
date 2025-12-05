@@ -1,23 +1,22 @@
-"""ml_knn_recommender
----------------------------------
-K-Nearest Neighbors based sport recommender utilities.
+"""
+================================================================================
+KNN SPORT RECOMMENDER
+================================================================================
 
-This module provides a small KNN-based recommender that loads
-feature vectors for sports from a Supabase view named
-``ml_training_data``, trains a nearest-neighbor index and exposes
-utility methods to obtain human-readable sport recommendations
-for a given user preferences vector.
+Purpose: K-Nearest Neighbors based sport recommender utilities. Provides a small
+KNN-based recommender that loads feature vectors for sports from a Supabase view
+named ml_training_data, trains a nearest-neighbor index and exposes utility methods
+to obtain human-readable sport recommendations for a given user preferences vector.
 
-Notes:
-- The KNN model uses cosine distance and a ``StandardScaler`` to
-    normalize features before computing similarities.
-- The code is intentionally lightweight — the primary goal is to
-    return nearest neighbors (feature-similar sports) rather than
-    train a large classification model.
+HOW IT WORKS:
+- The KNN model uses cosine distance and a StandardScaler to normalize features
+  before computing similarities.
+- The code is intentionally lightweight — the primary goal is to return nearest
+  neighbors (feature-similar sports) rather than train a large classification model.
 
-The main class is :class:`KNNSportRecommender` which exposes
-``load_and_train()``, ``get_recommendations()`` and model persistence
-helpers.
+The main class is KNNSportRecommender which exposes load_and_train(),
+get_recommendations() and model persistence helpers.
+================================================================================
 """
 import pandas as pd
 import numpy as np
@@ -26,8 +25,12 @@ from sklearn.preprocessing import StandardScaler
 import joblib
 from typing import List, Dict
 
-# Feature columns (13 features total)
-# These represent the "personality" of each sport for ML comparison
+# =============================================================================
+# FEATURE DEFINITIONS
+# =============================================================================
+# PURPOSE: Define feature columns used for ML comparison
+# WHY: These represent the "personality" of each sport for ML comparison (13 features total)
+
 FEATURE_COLUMNS = [
     'balance', 'flexibility', 'coordination', 'relaxation',  # Physical skills
     'strength', 'endurance', 'longevity',  # Fitness dimensions
@@ -35,6 +38,11 @@ FEATURE_COLUMNS = [
     'setting_team', 'setting_fun', 'setting_duo',  # Social settings
     'setting_solo', 'setting_competitive'  # Individual preferences
 ]
+
+# =============================================================================
+# KNN RECOMMENDER CLASS
+# =============================================================================
+# PURPOSE: Main class for KNN-based sport recommendations
 
 class KNNSportRecommender:
     """

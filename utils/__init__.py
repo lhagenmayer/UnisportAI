@@ -1,76 +1,108 @@
-"""Utility modules for UnisportAI application.
+"""
+================================================================================
+UTILS PACKAGE
+================================================================================
 
-This package contains helper functions extracted from streamlit_app.py
-to organize code better and make it easier to reuse functions.
+Purpose: Utility modules for UnisportAI application. Contains helper functions
+extracted from streamlit_app.py to organize code better and make it easier to reuse functions.
 
-WHAT IS THIS PACKAGE?
-In Python, a package is a folder with an __init__.py file
-This file makes Python treat the folder as a package that can be imported
-Instead of having all code in one huge file (streamlit_app.py), the code is split
-into smaller modules that each have a specific purpose:
+MODULES:
+- db.py: Functions for database access (reading and writing data to Supabase)
+- auth.py: Functions for user login, logout, and authentication
+- filters.py: Functions for filtering events and offers based on user criteria
+- ml_utils.py: Functions for machine learning recommendations
+- formatting.py: Functions for formatting HTML and creating display elements
+- analytics.py: Functions for analytics visualizations
 
-db.py: Functions for talking to the database (reading and writing data to Supabase)
-auth.py: Functions for user login, logout, and checking if someone is logged in
-user.py: Functions for managing user profiles, favorites, and preferences
-filters.py: Functions for filtering events and offers based on user criteria
-ml_utils.py: Functions for machine learning recommendations
-formatting.py: Functions for formatting HTML and creating nice looking cards
-
-WHY WAS THIS PACKAGE CREATED?
-There are several benefits of organizing code this way:
-
-1. Better organization: Functions that do similar things are grouped together
-   For example, all database functions are in db.py, not scattered everywhere
-
-2. Easier to find code: When a function that filters events is needed, it can be found
-   in filters.py. This avoids searching through thousands of lines
-
-3. Reusability: These functions can be imported and used in multiple places
-   For example, filter_events() can be used in different parts of the app
-
-4. Maintainability: When filtering logic needs to be changed, only
-   filters.py needs to be edited. Changes to one module don't break other modules
-
-HOW TO USE THIS PACKAGE?
-Functions can be imported in different ways:
-
-    # Import specific functions from the package
-    from utils import filter_events
-    
-    # Import functions from a specific module
-    from utils.db import get_offers_complete
-    from utils.auth import is_logged_in
-
-The __all__ list at the bottom defines which functions are "public"
-When someone does "from utils import *", only the functions in __all__ are imported
-This is a best practice: it controls what other code can access
+WHY: Better organization, easier to find code, reusability, maintainability.
+================================================================================
 """
 
-# Import functions from different modules so they're available when someone imports utils
-# The dot (.) means "from the current package"
-# Relative imports (with .) are preferred over absolute imports in packages
+# =============================================================================
+# IMPORTS
+# =============================================================================
+# PURPOSE: Import functions from different modules so they're available when someone imports utils
+# WHY: The dot (.) means "from the current package". Relative imports are preferred
+#      over absolute imports in packages.
 
 # Machine learning functions
-from .ml_utils import load_knn_model, build_user_preferences_from_filters, get_ml_recommendations
+from .ml_utils import (
+    load_knn_model,
+    build_user_preferences_from_filters
+)
 
 # Filtering functions
-from .filters import check_event_matches_filters, filter_offers, filter_events
+from .filters import (
+    filter_offers,
+    filter_events,
+    get_filter_values_from_session,
+    has_event_filters,
+    has_offer_filters,
+    initialize_session_state,
+    apply_soft_filters_to_score,
+    get_merged_recommendations,
+    apply_ml_recommendations_to_offers
+)
 
 # Formatting functions
-from .formatting import create_user_info_card_html
+from .formatting import (
+    format_intensity_display,
+    format_focus_display,
+    format_setting_display,
+    format_trainers_display,
+    create_offer_metadata_df,
+    parse_event_datetime,
+    format_weekday,
+    format_time_range,
+    get_match_score_style,
+    render_user_avatar,
+    convert_events_to_table_data
+)
 
-# This list defines what gets imported when someone does "from utils import *"
-# __all__ is a special variable that Python looks for
-# It's a way to control what's "public" vs "private" in this package
-# Only the functions listed here will be imported with "import *"
+# Analytics functions
+from .analytics import render_analytics_section, render_team_contribution_matrix
+
+# Database loading and filtering functions
+from .db import (
+    load_and_filter_offers,
+    load_and_filter_events
+)
+
+# =============================================================================
+# PUBLIC API
+# =============================================================================
+# PURPOSE: Define which functions are "public" (available via "from utils import *")
+# WHY: __all__ is a special variable that Python looks for. It's a way to control
+#      what's "public" vs "private" in this package. Only the functions listed here
+#      will be imported with "import *". This is a best practice.
+
 __all__ = [
     'load_knn_model',
     'build_user_preferences_from_filters',
-    'get_ml_recommendations',
-    'check_event_matches_filters',
     'filter_offers',
     'filter_events',
-    'create_user_info_card_html',
+    'get_filter_values_from_session',
+    'has_event_filters',
+    'has_offer_filters',
+    'apply_soft_filters_to_score',
+    'get_merged_recommendations',
+    'apply_ml_recommendations_to_offers',
+    'format_intensity_display',
+    'format_focus_display',
+    'format_setting_display',
+    'format_trainers_display',
+    'create_offer_metadata_df',
+    'parse_event_datetime',
+    'format_weekday',
+    'format_time_range',
+    'get_match_score_style',
+    'render_user_avatar',
+    'convert_events_to_table_data',
+    'initialize_session_state',
+    'render_analytics_section',
+    'render_team_contribution_matrix',
+    'load_and_filter_offers',
+    'load_and_filter_events',
 ]
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)
