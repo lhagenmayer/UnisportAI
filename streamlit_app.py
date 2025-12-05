@@ -816,7 +816,7 @@ def render_analytics_section():
                 with col_graph:
                     # Only show chart if data is available
                     if not chart_data_top10:
-                        st.info("No recommendations to display in chart.")
+                        st.info("Die Top 3 Empfehlungen werden links angezeigt. Es gibt keine weiteren Empfehlungen für das Diagramm.")
                     else:
                         # Prepare data for chart (top 10)
                         sport_names = []
