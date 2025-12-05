@@ -342,6 +342,8 @@ with st.sidebar:
                     value=st.session_state.get('show_upcoming_only', True),
                     key="unified_show_upcoming"
                 )
+                st.session_state['show_upcoming_only'] = show_upcoming
+                st.session_state['show_upcoming_only'] = show_upcoming
         
         # =================================================================
         # COURSE FILTERS (immer anzeigen)
@@ -1231,6 +1233,7 @@ tab_overview, tab_details, tab_athletes, tab_profile, tab_about = st.tabs([
 with tab_overview:
     # Import database functions
     from utils.db import get_offers_complete, get_events
+    from utils.filters import filter_offers, filter_events
     
     # =========================================================================
     # LOAD DATA
@@ -1305,6 +1308,51 @@ with tab_overview:
         min_match_score=st.session_state.get('min_match_score', 0),
         max_results=100000  # Effectively unlimited - show all results
     )
+    
+    # =========================================================================
+    # APPLY EVENT FILTERS TO FILTER OFFERS BY THEIR EVENTS
+    # =========================================================================
+    # If any event filters are selected, filter offers to only show those
+    # that have matching events
+    has_event_filters = bool(
+        selected_offers_filter or selected_weekdays or date_start or date_end or
+        time_start_filter or time_end_filter or selected_locations or hide_cancelled
+    )
+    
+    if has_event_filters:
+        # Load events to check which offers have matching events
+        try:
+            all_events = get_events()
+            
+            # Filter events based on event filters
+            filtered_events = filter_events(
+                all_events,
+                sport_filter=selected_offers_filter if selected_offers_filter else None,
+                weekday_filter=selected_weekdays if selected_weekdays else None,
+                date_start=date_start,
+                date_end=date_end,
+                time_start=time_start_filter,
+                time_end=time_end_filter,
+                location_filter=selected_locations if selected_locations else None,
+                hide_cancelled=hide_cancelled
+            )
+            
+            # Get set of sport names that have matching events
+            sports_with_matching_events = set()
+            for event in filtered_events:
+                sport_name = event.get('sport_name', '')
+                if sport_name:
+                    sports_with_matching_events.add(sport_name)
+            
+            # Filter offers to only include those with matching events
+            if sports_with_matching_events:
+                offers = [offer for offer in offers if offer.get('name', '') in sports_with_matching_events]
+            else:
+                # No events match the filters, so no offers should be shown
+                offers = []
+        except Exception as e:
+            # If event loading fails, continue with offers filtered by offer filters only
+            st.warning(f"⚠️ Could not apply event filters: {e}")
     
     # =========================================================================
     # ADD ML RECOMMENDATIONS TO THE LIST
@@ -2003,7 +2051,8 @@ with tab_athletes:
             unfollow_user,
             get_pending_friend_requests,
             get_user_friends,
-            get_user_by_id
+            get_user_by_id,
+            get_favorite_sports_with_details_by_id
         )
         
         # =========================================================================
@@ -2130,6 +2179,22 @@ with tab_athletes:
                                         
                                         if metadata:
                                             st.caption(' • '.join(metadata))
+                                        
+                                        # Favorite Sports (only if user is public)
+                                        if user.get('is_public', False):
+                                            user_favorites = get_favorite_sports_with_details_by_id(user['id'])
+                                            if user_favorites:
+                                                st.markdown("**Favorite Sports:**")
+                                                # Display favorites as badges
+                                                favorite_names = []
+                                                for fav in user_favorites:
+                                                    fav_name = fav.get('name', 'Unknown')
+                                                    fav_icon = fav.get('icon', '🏃')
+                                                    favorite_names.append(f"{fav_icon} {fav_name}")
+                                                
+                                                # Display as comma-separated badges
+                                                if favorite_names:
+                                                    st.caption(' • '.join(favorite_names))
                                     
                                     with col_action:
                                         st.write("")  # Spacing
@@ -2239,6 +2304,27 @@ with tab_athletes:
                             
                             if metadata:
                                 st.caption(' • '.join(metadata))
+                            
+                            # Favorite Sports (only if requester is public)
+                            # Check if requester is public by getting their user data
+                            try:
+                                requester_user_data = get_user_by_id(req['requester_id'])
+                                if requester_user_data and requester_user_data.get('is_public', False):
+                                    requester_favorites = get_favorite_sports_with_details_by_id(req['requester_id'])
+                                    if requester_favorites:
+                                        st.markdown("**Favorite Sports:**")
+                                        # Display favorites as badges
+                                        favorite_names = []
+                                        for fav in requester_favorites:
+                                            fav_name = fav.get('name', 'Unknown')
+                                            fav_icon = fav.get('icon', '🏃')
+                                            favorite_names.append(f"{fav_icon} {fav_name}")
+                                        
+                                        # Display as comma-separated badges
+                                        if favorite_names:
+                                            st.caption(' • '.join(favorite_names))
+                            except:
+                                pass  # If we can't get user data, just skip favorites
                         
                         with col_action:
                             st.write("")  # Spacing
@@ -2318,6 +2404,22 @@ with tab_athletes:
                         
                         if metadata:
                             st.caption(' • '.join(metadata))
+                        
+                        # Favorite Sports (only if user is public)
+                        if friend.get('is_public', False):
+                            friend_favorites = get_favorite_sports_with_details_by_id(friend['id'])
+                            if friend_favorites:
+                                st.markdown("**Favorite Sports:**")
+                                # Display favorites as badges
+                                favorite_names = []
+                                for fav in friend_favorites:
+                                    fav_name = fav.get('name', 'Unknown')
+                                    fav_icon = fav.get('icon', '🏃')
+                                    favorite_names.append(f"{fav_icon} {fav_name}")
+                                
+                                # Display as comma-separated badges
+                                if favorite_names:
+                                    st.caption(' • '.join(favorite_names))
 
 # =============================================================================
 # PART 9: TAB 4 - MY PROFILE
@@ -2348,7 +2450,11 @@ with tab_profile:
         from utils.db import (
             get_user_complete,
             get_offers_complete,
-            update_user_settings
+            update_user_settings,
+            get_user_favorite_sports,
+            get_favorite_sports_with_details,
+            add_favorite_sport,
+            remove_favorite_sport
         )
         
         # =========================================================================
@@ -2435,6 +2541,87 @@ with tab_profile:
                     else:
                         st.warning("🔒 Your profile is **private**")
                         st.caption("Only you can see your profile and activity")
+                    
+                    # Save visibility setting if changed
+                    if is_public != current_is_public:
+                        if update_user_settings(user_sub, visibility=is_public):
+                            st.success("✅ Visibility setting saved!")
+                            st.rerun()
+                    
+                    st.markdown("")
+                    
+                    # =========================================================================
+                    # FAVORITE SPORTS
+                    # =========================================================================
+                    st.markdown("#### Favorite Sports")
+                    
+                    # Load current favorites
+                    current_favorites = get_user_favorite_sports(user_sub)
+                    
+                    # Load all available sports
+                    all_offers = get_offers_complete()
+                    
+                    # Create a mapping of href to display name for the multiselect
+                    sport_options = {}
+                    for offer in all_offers:
+                        href = offer.get('href')
+                        name = offer.get('name', 'Unknown')
+                        if href:
+                            sport_options[href] = name
+                    
+                    # Multiselect widget for selecting favorites
+                    selected_favorites = st.multiselect(
+                        "Select your favorite sports",
+                        options=list(sport_options.keys()),
+                        default=current_favorites,
+                        format_func=lambda x: sport_options.get(x, x),
+                        help="Choose multiple sports that you like. These will be visible to other users on your profile."
+                    )
+                    
+                    # Show current favorites with remove option
+                    if current_favorites:
+                        st.markdown("**Your current favorites:**")
+                        favorite_details = get_favorite_sports_with_details(user_sub)
+                        for fav_detail in favorite_details:
+                            fav_href = fav_detail.get('href')
+                            fav_name = fav_detail.get('name', 'Unknown')
+                            fav_icon = fav_detail.get('icon', '🏃')
+                            
+                            col_fav_name, col_fav_remove = st.columns([4, 1])
+                            with col_fav_name:
+                                st.markdown(f"{fav_icon} {fav_name}")
+                            with col_fav_remove:
+                                if st.button("🗑️", key=f"remove_fav_{fav_href}", help="Remove this favorite"):
+                                    if remove_favorite_sport(user_sub, fav_href):
+                                        st.success(f"✅ Removed {fav_name} from favorites")
+                                        st.rerun()
+                    
+                    # Save button for favorites
+                    if st.button("💾 Save Favorites", type="primary", use_container_width=True):
+                        # Calculate differences
+                        to_add = set(selected_favorites) - set(current_favorites)
+                        to_remove = set(current_favorites) - set(selected_favorites)
+                        
+                        success = True
+                        errors = []
+                        
+                        # Add new favorites
+                        for href in to_add:
+                            if not add_favorite_sport(user_sub, href):
+                                success = False
+                                errors.append(f"Failed to add {sport_options.get(href, href)}")
+                        
+                        # Remove favorites that were deselected
+                        for href in to_remove:
+                            if not remove_favorite_sport(user_sub, href):
+                                success = False
+                                errors.append(f"Failed to remove {sport_options.get(href, href)}")
+                        
+                        if success:
+                            st.success("✅ Favorites saved!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Some errors occurred: {', '.join(errors)}")
                     
                     st.markdown("")
                     

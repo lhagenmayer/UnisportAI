@@ -197,6 +197,31 @@ CREATE TABLE IF NOT EXISTS public.trainer_user_ratings (
         REFERENCES public.trainer(name)
 );
 
+-- ---------------------------------------------------------------------
+-- 4. User favorites (sports)
+-- ---------------------------------------------------------------------
+-- `user_favorite_sports` stores which sports a user has marked as favorites.
+-- This allows users to save multiple sports and display them in their profile.
+
+CREATE TABLE IF NOT EXISTS public.user_favorite_sports (
+    id                uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id           uuid NOT NULL,            -- FK to `users`
+    sportangebot_href text NOT NULL,            -- FK to `sportangebote`
+    created_at        timestamptz DEFAULT now(),
+
+    CONSTRAINT user_favorite_sports_user_fkey
+        FOREIGN KEY (user_id)
+        REFERENCES public.users(id),
+
+    CONSTRAINT user_favorite_sports_sportangebot_href_fkey
+        FOREIGN KEY (sportangebot_href)
+        REFERENCES public.sportangebote(href),
+
+    -- Prevent duplicate favorites: a user can only favorite each sport once
+    CONSTRAINT user_favorite_sports_unique
+        UNIQUE (user_id, sportangebot_href)
+);
+
 CREATE TABLE IF NOT EXISTS public.friend_requests (
     id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     requester_id uuid NOT NULL,                       -- FK to `users` (sender)

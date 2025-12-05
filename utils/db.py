@@ -137,7 +137,7 @@ def get_public_users():
     # Database queries can fail, so we use try/except for error handling
     # If something goes wrong, we return an empty list
     try:
-        result = supaconn().table("users").select("id, name, email, picture, bio, created_at").eq("is_public", True).execute()
+        result = supaconn().table("users").select("id, name, email, picture, bio, created_at, is_public").eq("is_public", True).execute()
         if result.data:
             return result.data
         return []
@@ -372,6 +372,135 @@ def get_average_rating_for_trainer(trainer_name):
     except:
         # If there's an error, return default values
         return {"avg": 3, "count": 0}
+
+# FAVORITES
+
+# Return list of favorite sport hrefs for current user
+@st.cache_data(ttl=60)
+def get_user_favorite_sports(user_sub):
+    # Database queries can fail, so we use try/except for error handling
+    try:
+        user_id = _get_user_id(user_sub)
+        if not user_id:
+            return []
+        result = supaconn().table("user_favorite_sports").select("sportangebot_href").eq("user_id", user_id).execute()
+        if result.data:
+            # Extract hrefs from result
+            return [item['sportangebot_href'] for item in result.data]
+        return []
+    except:
+        # If there's an error, return empty list
+        return []
+
+# Return favorite sports with full details (name, icon, etc.) for current user
+@st.cache_data(ttl=60)
+def get_favorite_sports_with_details(user_sub):
+    # Database queries can fail, so we use try/except for error handling
+    try:
+        user_id = _get_user_id(user_sub)
+        if not user_id:
+            return []
+        # Get favorite hrefs
+        favorites_result = supaconn().table("user_favorite_sports").select("sportangebot_href").eq("user_id", user_id).execute()
+        if not favorites_result.data:
+            return []
+        
+        favorite_hrefs = [item['sportangebot_href'] for item in favorites_result.data]
+        
+        # Get full details for each favorite sport
+        conn = supaconn()
+        offers = []
+        for href in favorite_hrefs:
+            offer_result = conn.table("sportangebote").select("*").eq("href", href).execute()
+            if offer_result.data:
+                offers.append(offer_result.data[0])
+        
+        return offers
+    except:
+        # If there's an error, return empty list
+        return []
+
+# Add a favorite sport for current user
+def add_favorite_sport(user_sub, sportangebot_href):
+    # Database operations can fail, so we use try/except for error handling
+    try:
+        user_id = _get_user_id(user_sub)
+        if not user_id:
+            return False
+        
+        conn = supaconn()
+        # Check if already exists (unique constraint will also prevent duplicates)
+        existing = conn.table("user_favorite_sports").select("id").eq("user_id", user_id).eq("sportangebot_href", sportangebot_href).execute()
+        if existing.data:
+            # Already exists, return True (success but no change)
+            return True
+        
+        # Insert new favorite
+        favorite_data = {
+            "user_id": user_id,
+            "sportangebot_href": sportangebot_href
+        }
+        conn.table("user_favorite_sports").insert(favorite_data).execute()
+        
+        return True
+    except:
+        # If there's an error, return False (favorite not added)
+        return False
+
+# Remove a favorite sport for current user
+def remove_favorite_sport(user_sub, sportangebot_href):
+    # Database operations can fail, so we use try/except for error handling
+    try:
+        user_id = _get_user_id(user_sub)
+        if not user_id:
+            return False
+        
+        conn = supaconn()
+        conn.table("user_favorite_sports").delete().eq("user_id", user_id).eq("sportangebot_href", sportangebot_href).execute()
+        
+        return True
+    except:
+        # If there's an error, return False (favorite not removed)
+        return False
+
+# Return list of favorite sport hrefs for a user by user_id (for viewing other users' favorites)
+@st.cache_data(ttl=60)
+def get_user_favorite_sports_by_id(user_id):
+    # Database queries can fail, so we use try/except for error handling
+    try:
+        result = supaconn().table("user_favorite_sports").select("sportangebot_href").eq("user_id", user_id).execute()
+        if result.data:
+            # Extract hrefs from result
+            return [item['sportangebot_href'] for item in result.data]
+        return []
+    except:
+        # If there's an error, return empty list
+        return []
+
+# Return favorite sports with full details for a user by user_id
+@st.cache_data(ttl=60)
+def get_favorite_sports_with_details_by_id(user_id):
+    # Database queries can fail, so we use try/except for error handling
+    try:
+        # Get favorite hrefs
+        favorites_result = supaconn().table("user_favorite_sports").select("sportangebot_href").eq("user_id", user_id).execute()
+        if not favorites_result.data:
+            return []
+        
+        favorite_hrefs = [item['sportangebot_href'] for item in favorites_result.data]
+        
+        # Get full details for each favorite sport
+        conn = supaconn()
+        offers = []
+        for href in favorite_hrefs:
+            offer_result = conn.table("sportangebote").select("*").eq("href", href).execute()
+            if offer_result.data:
+                offers.append(offer_result.data[0])
+        
+        return offers
+    except:
+        # If there's an error, return empty list
+        return []
 
 # MACHINE LEARNING DATA
 
