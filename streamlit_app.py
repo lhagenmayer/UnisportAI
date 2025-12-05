@@ -152,13 +152,23 @@ def initialize_session_state():
 # DATA LOADING (Early, before sidebar rendering)
 # =============================================================================
 # Load data early so it's available for sidebar filters and all tabs
+# IMPORTANT: Wrap in try-except to ensure tabs (especially About) are always accessible
 from utils.db import get_offers_complete, get_events
 
 if 'sports_data' not in st.session_state:
-    st.session_state['sports_data'] = get_offers_complete()
+    try:
+        st.session_state['sports_data'] = get_offers_complete()
+    except Exception as e:
+        # If data loading fails, use empty list to allow app to continue
+        # This ensures About tab and other tabs remain accessible
+        st.session_state['sports_data'] = []
 
 if 'events_data' not in st.session_state:
-    st.session_state['events_data'] = get_events()
+    try:
+        st.session_state['events_data'] = get_events()
+    except Exception as e:
+        # If data loading fails, use empty list to allow app to continue
+        st.session_state['events_data'] = []
 
 sports_data = st.session_state.get('sports_data', [])
 events = st.session_state.get('events_data', [])
@@ -185,23 +195,9 @@ with st.sidebar:
         
         if not is_logged_in():
             # === NOT LOGGED IN: Show login UI ===
-            st.markdown("""
-            <div style="
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 20px;
-                border-radius: 12px;
-                margin-bottom: 16px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                text-align: center;
-            ">
-                <div style="color: white; font-size: 18px; font-weight: 700; margin-bottom: 12px;">
-                    🎯 UnisportAI
-                </div>
-                <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 16px;">
-                    Sign in to access all features
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container():
+                st.markdown("### 🎯 UnisportAI")
+                st.markdown("Sign in to access all features")
             
             # Login button using Streamlit's authentication
             st.button(
@@ -213,7 +209,7 @@ with st.sidebar:
                 args=["google"]
             )
             
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("")
         else:
             # === LOGGED IN: Show user profile card ===
             try:
@@ -245,37 +241,22 @@ with st.sidebar:
                     if user_picture and str(user_picture).startswith('http'):
                         st.image(user_picture, width=60)
                     else:
-                        # Create initials avatar
+                        # Create initials avatar using Streamlit-native approach
                         name_words = user_name.split()[:2]
                         initials_list = []
                         for word in name_words:
                             if word:
                                 initials_list.append(word[0].upper())
                         initials = ''.join(initials_list)
-                        st.markdown(f"""
-                        <div style="width: 60px; height: 60px; border-radius: 50%; 
-                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                    display: flex; align-items: center; justify-content: center;
-                                    color: white; font-size: 20px; font-weight: bold;
-                                    border: 3px solid white;">
-                            {initials}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Use a simple text-based approach
+                        st.markdown(f"**{initials}**")
                 
                 with col_info:
-                    st.markdown(f"""
-                    <div style="color: #333; font-size: 12px; font-weight: 600; margin-bottom: 4px;">
-                        👤 Signed in as
-                    </div>
-                    <div style="color: #333; font-size: 14px; font-weight: 700; margin-bottom: 2px;">
-                        {user_name}
-                    </div>
-                    <div style="color: #666; font-size: 11px;">
-                        {user_email}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown("**Signed in as**")
+                    st.markdown(f"**{user_name}**")
+                    st.caption(user_email)
             
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("")
         
         # Separator after user section
         st.markdown("---")
@@ -293,7 +274,7 @@ with st.sidebar:
         # IMPORTANT: Store in session_state so other tabs can access it
         st.session_state['search_text'] = search_text
         
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("")
         
         # =================================================================
         # ACTIVITY FILTERS (immer anzeigen)
@@ -353,7 +334,7 @@ with st.sidebar:
                     )
                     st.session_state['setting'] = selected_setting
                 
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("")
                 
                 # --- Show Upcoming Only Checkbox ---
                 show_upcoming = st.checkbox(
@@ -383,7 +364,7 @@ with st.sidebar:
                 )
                 st.session_state['location'] = selected_locations
                 
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("")
                 
                 # Weekday filter - use English names directly
                 weekday_options = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 
@@ -423,7 +404,7 @@ with st.sidebar:
                 )
                 st.session_state['offers'] = selected_sports
                 
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("")
                 
                 # --- Hide Cancelled Checkbox ---
                 hide_cancelled = st.checkbox(
@@ -455,7 +436,7 @@ with st.sidebar:
                     )
                     st.session_state['date_end'] = end_date
                 
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("")
                 st.markdown("**Time Range**")
                 
                 # Time range inputs (two columns)
@@ -976,11 +957,7 @@ def render_analytics_section():
                 # Left column: Podest (Top 3 vertically) - compact version
                 with col_podest:
                     # Add title above podest (consistent with graph titles)
-                    st.markdown("""
-                    <div style="text-align: center; margin-bottom: 15px;">
-                        <h3 style="color: #000000; font-family: Arial; font-size: 18px; margin: 0;">Top Recommendations</h3>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown("### Top Recommendations")
                     
                     if len(top3_combined) >= 3:
                         medals = ['🥇', '🥈', '🥉']
@@ -1080,15 +1057,11 @@ def render_analytics_section():
                             else:
                                 features_text = "Matches preferences"
                             
-                            # Compact container with minimal padding using custom CSS (no shadow, blends with graphs)
-                            st.markdown(f"""
-                            <div style="border: 1px solid rgba(108, 117, 125, 0.2); border-radius: 6px; padding: 8px; background: rgba(255,255,255,0.8); margin-bottom: 6px;">
-                                <div style="font-size: 18px; font-weight: bold; margin-bottom: 2px;">{medal}</div>
-                                <div style="font-size: 13px; font-weight: bold; margin-bottom: 2px;">{sport_name}</div>
-                                <div style="font-size: 15px; font-weight: bold; margin-bottom: 2px;"><span style="color: #2E86AB;">{match_score:.1f}%</span> <span style="color: {quality_color};">{quality_emoji} {quality_text}</span></div>
-                                <div style="font-size: 10px; color: #6C757D; line-height: 1.2;">{features_text}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            # Compact container using Streamlit-native components
+                            with st.container(border=True):
+                                st.markdown(f"**{medal} {sport_name}**")
+                                st.markdown(f"**{match_score:.1f}%** {quality_emoji} {quality_text}")
+                                st.caption(features_text)
                 
                 # Right column: Graph (Top 10)
                 with col_graph:
@@ -1367,8 +1340,14 @@ def render_analytics_section():
                     st.info(f"🤖 **KI-Empfehlungen**: Keine Empfehlungen gefunden mit einem Match-Score ≥ {min_match}%. Versuchen Sie, den Mindest-Match-Score zu senken oder andere Filter auszuwählen.")
 
 # Call the function to render analytics inside an expander (open by default)
-with st.expander("Analytics", expanded=True):
-    render_analytics_section()
+# Only show analytics if user is logged in or if we can safely access the database
+try:
+    with st.expander("Analytics", expanded=True):
+        render_analytics_section()
+except Exception as e:
+    # If analytics fails, don't stop the app - just skip it
+    # This ensures the About tab is always accessible
+    pass
 
 # =============================================================================
 # CREATE TABS
@@ -1428,7 +1407,8 @@ with tab_overview:
         
         You can still explore the code structure even if live data is not available.
         """)
-        st.stop()
+        # Don't stop execution - allow other tabs (like About) to still work
+        offers_data = []
     
     # Store in session state so other tabs can use it.
     # This makes the data available globally without re-querying the database.
@@ -1995,7 +1975,8 @@ with tab_details:
         - Verify Supabase credentials in `.streamlit/secrets.toml`
         - Make sure the Supabase project is reachable
         """)
-        st.stop()
+        # Don't stop execution - allow other tabs (like About) to still work
+        events = []
     
     if not events:
         st.info("📅 No course dates available.")
@@ -2152,7 +2133,7 @@ with tab_athletes:
     # PATTERN: Early return pattern for authentication gates
     
     if not is_logged_in():
-        # User is NOT logged in - show info message and stop
+        # User is NOT logged in - show info message
         st.info("🔒 **Login required** - Sign in with Google in the sidebar")
         
         st.markdown("""
@@ -2162,216 +2143,206 @@ with tab_athletes:
         - 🤝 **Build Your Network** - Connect with your sports community
         - ⭐ **Rate & Review** - Share your experience with courses and trainers
         """)
-        st.stop()  # Stop execution here - don't show rest of tab content
-    
-    # =========================================================================
-    # IMPORT FUNCTIONS (only if logged in)
-    # =========================================================================
-    from utils.db import (
-        get_user_id_by_sub,
-        get_public_users,
-        get_friend_status,
-        send_friend_request,
-        accept_friend_request,
-        reject_friend_request,
-        unfollow_user,
-        get_pending_friend_requests,
-        get_user_friends,
-        get_user_by_id
-    )
-    
-    # =========================================================================
-    # GET CURRENT USER ID
-    # =========================================================================
-    # Helper function to get current user's database ID
-    def get_current_user_id():
-        """
-        Get the current user's database ID.
+        # Don't use st.stop() - it stops the entire app, preventing other tabs from loading
+    else:
+        # =========================================================================
+        # IMPORT FUNCTIONS (only if logged in)
+        # =========================================================================
+        from utils.db import (
+            get_user_id_by_sub,
+            get_public_users,
+            get_friend_status,
+            send_friend_request,
+            accept_friend_request,
+            reject_friend_request,
+            unfollow_user,
+            get_pending_friend_requests,
+            get_user_friends,
+            get_user_by_id
+        )
         
-        PURPOSE: Convert authentication sub to database user ID
-        PATTERN: Try to get existing, sync if missing
+        # =========================================================================
+        # GET CURRENT USER ID
+        # =========================================================================
+        # Helper function to get current user's database ID
+        def get_current_user_id():
+            """
+            Get the current user's database ID.
+            
+            PURPOSE: Convert authentication sub to database user ID
+            PATTERN: Try to get existing, sync if missing
+            
+            Returns:
+                User ID (int) or None if error
+            """
+            user_sub = get_user_sub()
+            if not user_sub:
+                return None
+            
+            # Try to get existing user from database
+            user_id = get_user_id_by_sub(user_sub)
+            
+            # If user doesn't exist, try to sync
+            if not user_id:
+                try:
+                    sync_user_to_supabase()
+                    user_id = get_user_id_by_sub(user_sub)
+                except:
+                    pass
+            
+            return user_id
         
-        Returns:
-            User ID (int) or None if error
-        """
-        user_sub = get_user_sub()
-        if not user_sub:
-            return None
+        # Get current user's ID
+        try:
+            current_user_id = get_current_user_id()
+        except Exception as e:
+            st.error(f"❌ Error loading your profile: {str(e)}")
+            current_user_id = None
         
-        # Try to get existing user from database
-        user_id = get_user_id_by_sub(user_sub)
-        
-        # If user doesn't exist, try to sync
-        if not user_id:
-            try:
-                sync_user_to_supabase()
-                user_id = get_user_id_by_sub(user_sub)
-            except:
-                pass
-        
-        return user_id
-    
-    # Get current user's ID
-    try:
-        current_user_id = get_current_user_id()
         if not current_user_id:
             st.error("❌ Error loading your profile. User not found in database.")
             st.info("💡 Try logging out and logging back in.")
-            st.stop()
-    except Exception as e:
-        st.error(f"❌ Error loading your profile: {str(e)}")
-        st.stop()
-    
-    # =========================================================================
-    # PAGE HEADER
-    # =========================================================================
-    # No header text - cleaner design
-    
-    # =========================================================================
-    # TWO-COLUMN LAYOUT WITH SEPARATOR
-    # =========================================================================
-    # STREAMLIT CONCEPT: Three-column layout with narrow middle column for separator
-    col_left, col_sep, col_right = st.columns([1, 0.03, 1])
-    
-    # Vertical separator in middle column
-    with col_sep:
-        st.markdown("""
-        <div style="border-left: 2px solid #e0e0e0; height: 100%; min-height: 500px; margin: 0;"></div>
-        """, unsafe_allow_html=True)
-    
-    # =========================================================================
-    # LEFT COLUMN: DISCOVER ATHLETES
-    # =========================================================================
-    with col_left:
-        st.subheader("🔍 Discover Athletes")
-        
-        # Load public users from database
-        with st.spinner('🔄 Loading athletes...'):
-            public_users = get_public_users()
-        
-        if not public_users:
-            st.info("📭 No public profiles available yet.")
-            st.caption("Be the first to make your profile public in Settings!")
+            # Don't use st.stop() - it stops the entire app
         else:
-            # Filter out own profile
-            filtered_public_users = []
-            for u in public_users:
-                if u['id'] != current_user_id:
-                    filtered_public_users.append(u)
-            public_users = filtered_public_users
-            
-            if not public_users:
-                st.info("📭 No other public profiles available yet.")
-                st.caption("Check back later as more athletes join the community!")
-            else:
-                # Display each user as a card
-                for user in public_users:
-                    with st.container(border=True):
-                        # Three columns: picture, info, action
-                        col_pic, col_info, col_action = st.columns([1, 4, 2])
+                # =========================================================================
+                # PAGE HEADER
+                # =========================================================================
+                # No header text - cleaner design
+                
+                # =========================================================================
+                # TWO-COLUMN LAYOUT WITH SEPARATOR
+                # =========================================================================
+                # STREAMLIT CONCEPT: Three-column layout with narrow middle column for separator
+                col_left, col_sep, col_right = st.columns([1, 0.03, 1])
+                
+                # Vertical separator removed - using column spacing instead
+                
+                # =========================================================================
+                # LEFT COLUMN: DISCOVER ATHLETES
+                # =========================================================================
+                with col_left:
+                    st.subheader("🔍 Discover Athletes")
+                    
+                    # Load public users from database
+                    with st.spinner('🔄 Loading athletes...'):
+                        public_users = get_public_users()
+                    
+                    if not public_users:
+                        st.info("📭 No public profiles available yet.")
+                        st.caption("Be the first to make your profile public in Settings!")
+                    else:
+                        # Filter out own profile
+                        filtered_public_users = []
+                        for u in public_users:
+                            if u['id'] != current_user_id:
+                                filtered_public_users.append(u)
+                        public_users = filtered_public_users
                         
-                        with col_pic:
-                            # Show profile picture or initials
-                            if user.get('picture') and str(user['picture']).startswith('http'):
-                                st.image(user['picture'], width=100)
+                        if not public_users:
+                            st.info("📭 No other public profiles available yet.")
+                            st.caption("Check back later as more athletes join the community!")
+                        else:
+                            # Display each user as a card
+                            for user in public_users:
+                                with st.container(border=True):
+                                    # Three columns: picture, info, action
+                                    col_pic, col_info, col_action = st.columns([1, 4, 2])
+                                    
+                                    with col_pic:
+                                        # Show profile picture or initials
+                                        if user.get('picture') and str(user['picture']).startswith('http'):
+                                            st.image(user['picture'], width=100)
+                                        else:
+                                            # Create initials avatar using Streamlit-native approach
+                                            name = user.get('name', 'U')
+                                            name_words = name.split()[:2]
+                                            initials_list = []
+                                            for word in name_words:
+                                                if word:
+                                                    initials_list.append(word[0].upper())
+                                            initials = ''.join(initials_list)
+                                            st.markdown(f"### {initials}")
+                                    
+                                    with col_info:
+                                        st.markdown(f"### {user.get('name', 'Unknown')}")
+                                        
+                                        # Bio preview (first 120 characters)
+                                        if user.get('bio'):
+                                            bio = user['bio']
+                                            if len(bio) > 120:
+                                                preview = bio[:120] + "..."
+                                            else:
+                                                preview = bio
+                                            st.caption(preview)
+                                        
+                                        # Metadata (email and join date)
+                                        metadata = []
+                                        if user.get('email'):
+                                            metadata.append(f"📧 {user['email']}")
+                                        if user.get('created_at'):
+                                            join_date = user['created_at'][:10]
+                                            metadata.append(f"📅 Joined {join_date}")
+                                        
+                                        if metadata:
+                                            st.caption(' • '.join(metadata))
+                                    
+                                    with col_action:
+                                        st.write("")  # Spacing
+                                        
+                                        # Check friendship status
+                                        status = get_friend_status(current_user_id, user['id'])
+                                        
+                                        # Show different UI based on status
+                                        if status == "friends":
+                                            st.success("✓ Connected")
+                                            if st.button("🗑️ Unfriend", key=f"unfollow_{user['id']}", use_container_width=True):
+                                                if unfollow_user(current_user_id, user['id']):
+                                                    st.success("✅ Unfriended")
+                                                    st.rerun()
+                                        
+                                        elif status == "request_sent":
+                                            st.info("⏳ Pending")
+                                        
+                                        elif status == "request_received":
+                                            st.warning("📨 Respond")
+                                        
+                                        else:
+                                            # No relationship - show add friend button
+                                            if st.button(
+                                                "➕ Add Friend",
+                                                key=f"request_{user['id']}",
+                                                use_container_width=True,
+                                                type="primary"
+                                            ):
+                                                if send_friend_request(current_user_id, user['id']):
+                                                    st.success("✅ Request sent!")
+                                                    st.rerun()
+                                                else:
+                                                    st.warning("Request already pending")
+                
+                # =========================================================================
+                # RIGHT COLUMN: MY ATHLETES
+                # =========================================================================
+                with col_right:
+                    # My Athletes section
+                    st.subheader("👥 My Athletes")
+                    
+                    # Athlete Requests Expander under the title
+                    with st.expander("📩 Athlete Requests", expanded=False):
+                        # Load pending athlete requests
+                        with st.spinner('🔄 Loading requests...'):
+                            requests = get_pending_friend_requests(current_user_id)
+                        
+                        if not requests:
+                            st.info("📭 No pending athlete requests.")
+                            st.caption("You'll see requests here when other athletes want to connect with you.")
+                        else:
+                            request_count = len(requests)
+                            if request_count != 1:
+                                request_text = "requests"
                             else:
-                                # Create initials avatar
-                                name = user.get('name', 'U')
-                                name_words = name.split()[:2]
-                                initials_list = []
-                                for word in name_words:
-                                    if word:
-                                        initials_list.append(word[0].upper())
-                                initials = ''.join(initials_list)
-                                st.markdown(f"""
-                                <div style="width: 100px; height: 100px; border-radius: 50%; 
-                                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                            display: flex; align-items: center; justify-content: center;
-                                            color: white; font-size: 32px; font-weight: bold;">
-                                    {initials}
-                                </div>
-                                """, unsafe_allow_html=True)
-                        
-                        with col_info:
-                            st.markdown(f"### {user.get('name', 'Unknown')}")
-                            
-                            # Bio preview (first 120 characters)
-                            if user.get('bio'):
-                                bio = user['bio']
-                                if len(bio) > 120:
-                                    preview = bio[:120] + "..."
-                                else:
-                                    preview = bio
-                                st.caption(preview)
-                            
-                            # Metadata (email and join date)
-                            metadata = []
-                            if user.get('email'):
-                                metadata.append(f"📧 {user['email']}")
-                            if user.get('created_at'):
-                                join_date = user['created_at'][:10]
-                                metadata.append(f"📅 Joined {join_date}")
-                            
-                            if metadata:
-                                st.caption(' • '.join(metadata))
-                        
-                        with col_action:
-                            st.write("")  # Spacing
-                            
-                            # Check friendship status
-                            status = get_friend_status(current_user_id, user['id'])
-                            
-                            # Show different UI based on status
-                            if status == "friends":
-                                st.success("✓ Connected")
-                                if st.button("🗑️ Unfriend", key=f"unfollow_{user['id']}", use_container_width=True):
-                                    if unfollow_user(current_user_id, user['id']):
-                                        st.success("✅ Unfriended")
-                                        st.rerun()
-                            
-                            elif status == "request_sent":
-                                st.info("⏳ Pending")
-                            
-                            elif status == "request_received":
-                                st.warning("📨 Respond")
-                            
-                            else:
-                                # No relationship - show add friend button
-                                if st.button(
-                                    "➕ Add Friend",
-                                    key=f"request_{user['id']}",
-                                    use_container_width=True,
-                                    type="primary"
-                                ):
-                                    if send_friend_request(current_user_id, user['id']):
-                                        st.success("✅ Request sent!")
-                                        st.rerun()
-                                    else:
-                                        st.warning("Request already pending")
-    
-    # =========================================================================
-    # RIGHT COLUMN: MY ATHLETES
-    # =========================================================================
-    with col_right:
-        # My Athletes section
-        st.subheader("👥 My Athletes")
-        
-        # Athlete Requests Expander under the title
-        with st.expander("📩 Athlete Requests", expanded=False):
-            # Load pending athlete requests
-            with st.spinner('🔄 Loading requests...'):
-                requests = get_pending_friend_requests(current_user_id)
-            
-            if not requests:
-                st.info("📭 No pending athlete requests.")
-                st.caption("You'll see requests here when other athletes want to connect with you.")
-            else:
-                request_count = len(requests)
-                if request_count != 1:
-                    request_text = "requests"
-                else:
-                    request_text = "request"
-                st.caption(f"**{request_count}** pending {request_text}")
+                                request_text = "request"
+                            st.caption(f"**{request_count}** pending {request_text}")
                 
                 # Display each request
                 for req in requests:
@@ -2406,16 +2377,9 @@ with tab_athletes:
                             if requester_picture and str(requester_picture).startswith('http'):
                                 st.image(requester_picture, width=80)
                             else:
-                                # Create initials avatar
+                                # Create initials avatar using Streamlit-native approach
                                 initials = ''.join([word[0].upper() for word in requester_name.split()[:2]])
-                                st.markdown(f"""
-                                <div style="width: 80px; height: 80px; border-radius: 50%; 
-                                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                            display: flex; align-items: center; justify-content: center;
-                                            color: white; font-size: 28px; font-weight: bold;">
-                                    {initials}
-                                </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(f"**{initials}**")
                         
                         with col_info:
                             st.markdown(f"### {requester_name}")
@@ -2451,7 +2415,7 @@ with tab_athletes:
                                     st.success("Request declined")
                                     st.rerun()
         
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("")
         
         # Load friends list
         with st.spinner('🔄 Loading athletes...'):
@@ -2487,17 +2451,10 @@ with tab_athletes:
                         if friend.get('picture') and str(friend['picture']).startswith('http'):
                             st.image(friend['picture'], width=80)
                         else:
-                            # Create initials avatar
+                            # Create initials avatar using Streamlit-native approach
                             name = friend.get('name', 'U')
                             initials = ''.join([word[0].upper() for word in name.split()[:2]])
-                            st.markdown(f"""
-                            <div style="width: 80px; height: 80px; border-radius: 50%; 
-                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                        display: flex; align-items: center; justify-content: center;
-                                        color: white; font-size: 28px; font-weight: bold;">
-                                {initials}
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"**{initials}**")
                     
                     with col_info:
                         st.markdown(f"### {friend.get('name', 'Unknown')}")
@@ -2533,138 +2490,113 @@ with tab_profile:
         
         st.markdown("""
         ### What you can do with a profile:
-        - 📋 **View Your Info** - See your account details and activity
-        - ⚙️ **Set Preferences** - Choose your favorite sports and activities  
-        - 🌐 **Control Visibility** - Decide who can see your profile
+        - 📋 **View Your Info** - See your account details (name, email, member since)
+        - 🌐 **Control Visibility** - Decide who can see your profile (public or private)
         - 👥 **Track Social Stats** - See your athletes and social connections
-        - ⭐ **Rate Activities** - Share your experience with courses and trainers
         """)
-        st.stop()
-    
-    # =========================================================================
-    # IMPORTS
-    # =========================================================================
-    import json
-    from utils.db import (
-        get_user_complete,
-        get_offers_complete,
-        update_user_settings
-    )
-    
-    # =========================================================================
-    # PAGE HEADER
-    # =========================================================================
-    # No header text - cleaner design
-    
-    # =========================================================================
-    # LOAD USER PROFILE
-    # =========================================================================
-    user_sub = get_user_sub()
-    if not user_sub:
-        st.error("❌ Login required.")
-        st.stop()
-    
-    profile = get_user_complete(user_sub)
-    if not profile:
-        st.error("❌ Profile not found.")
-        st.stop()
-    
-    # =========================================================================
-    # TWO COLUMN LAYOUT WITH SEPARATOR
-    # =========================================================================
-    col_left, col_separator, col_right = st.columns([1, 0.05, 1])
-    
-    # =========================================================================
-    # LEFT COLUMN: USER INFORMATION & LOGOUT
-    # =========================================================================
-    with col_left:
-        st.subheader("User Information")
-        
-        # User info card (no border)
-        col_pic, col_info = st.columns([1, 3])
-        
-        with col_pic:
-            # Profile picture with fallback
-            if profile.get('picture') and str(profile['picture']).startswith('http'):
-                st.image(profile['picture'], width=120)
-            else:
-                # Create initials avatar
-                name = profile.get('name', 'U')
-                initials = ''.join([word[0].upper() for word in name.split()[:2]])
-                st.markdown(f"""
-                <div style="width: 120px; height: 120px; border-radius: 50%; 
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            display: flex; align-items: center; justify-content: center;
-                            color: white; font-size: 40px; font-weight: bold;">
-                    {initials}
-                </div>
-                """, unsafe_allow_html=True)
-        
-        with col_info:
-            st.markdown(f"### {profile.get('name', 'N/A')}")
-            
-            # Metadata - structured in separate lines
-            if profile.get('email'):
-                st.markdown(f"📧 {profile['email']}")
-            if profile.get('created_at'):
-                st.markdown(f"📅 Member since {profile['created_at'][:10]}")
-            if profile.get('last_login'):
-                st.markdown(f"🕐 Last login {profile['last_login'][:10]}")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-    
-    # =========================================================================
-    # SEPARATOR COLUMN: VERTICAL LINE
-    # =========================================================================
-    with col_separator:
-        st.markdown(
-            """
-            <style>
-            .vertical-separator {
-                border-left: 2px solid #e0e0e0;
-                height: 100vh;
-                position: relative;
-            }
-            </style>
-            <div style="border-left: 2px solid #e0e0e0; height: 800px; margin: 0;"></div>
-            """,
-            unsafe_allow_html=True
-        )
-    
-    # =========================================================================
-    # RIGHT COLUMN: SETTINGS
-    # =========================================================================
-    with col_right:
-        st.subheader("Settings")
-        
+        # Don't use st.stop() - it stops the entire app, preventing other tabs from loading
+    else:
         # =========================================================================
-        # PROFILE VISIBILITY
+        # IMPORTS
         # =========================================================================
-        st.markdown("#### Profile Visibility")
-        
-        # Get current visibility setting
-        current_is_public = profile.get('is_public', False)
-        
-        # Toggle for public/private
-        is_public = st.toggle(
-            "Make profile public",
-            value=current_is_public,
-            help="Allow other users to see your profile on the Athletes page"
+        import json
+        from utils.db import (
+            get_user_complete,
+            get_offers_complete,
+            update_user_settings
         )
         
-        # Show status message integrated with toggle
-        if is_public:
-            st.caption("Other users can find you, send athlete requests, and see when you attend courses")
+        # =========================================================================
+        # PAGE HEADER
+        # =========================================================================
+        # No header text - cleaner design
+        
+        # =========================================================================
+        # LOAD USER PROFILE
+        # =========================================================================
+        user_sub = get_user_sub()
+        if not user_sub:
+            st.error("❌ Login required.")
         else:
-            st.warning("🔒 Your profile is **private**")
-            st.caption("Only you can see your profile and activity")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Logout-Button ganz unten in der rechten Spalte
-        st.markdown("---")
-        if st.button("🚪 Logout", type="secondary", use_container_width=True):
-            handle_logout()
+            profile = get_user_complete(user_sub)
+            if not profile:
+                st.error("❌ Profile not found.")
+            else:
+                # =========================================================================
+                # TWO COLUMN LAYOUT
+                # =========================================================================
+                col_left, col_right = st.columns(2)
+                
+                # =========================================================================
+                # LEFT COLUMN: USER INFORMATION & LOGOUT
+                # =========================================================================
+                with col_left:
+                    st.subheader("User Information")
+                    
+                    # User info card (no border)
+                    col_pic, col_info = st.columns([1, 3])
+                    
+                    with col_pic:
+                        # Profile picture with fallback
+                        if profile.get('picture') and str(profile['picture']).startswith('http'):
+                            st.image(profile['picture'], width=120)
+                        else:
+                            # Create initials avatar using Streamlit-native approach
+                            name = profile.get('name', 'U')
+                            initials = ''.join([word[0].upper() for word in name.split()[:2]])
+                            st.markdown(f"## {initials}")
+                    
+                    with col_info:
+                        st.markdown(f"### {profile.get('name', 'N/A')}")
+                        
+                        # Metadata - structured in separate lines
+                        if profile.get('email'):
+                            st.markdown(f"📧 {profile['email']}")
+                        if profile.get('created_at'):
+                            st.markdown(f"📅 Member since {profile['created_at'][:10]}")
+                        if profile.get('last_login'):
+                            st.markdown(f"🕐 Last login {profile['last_login'][:10]}")
+                    
+                    st.markdown("")
+                
+                # =========================================================================
+                # SEPARATOR COLUMN: Removed - using column spacing instead
+                # =========================================================================
+                
+                # =========================================================================
+                # RIGHT COLUMN: SETTINGS
+                # =========================================================================
+                with col_right:
+                    st.subheader("Settings")
+                    
+                    # =========================================================================
+                    # PROFILE VISIBILITY
+                    # =========================================================================
+                    st.markdown("#### Profile Visibility")
+                    
+                    # Get current visibility setting
+                    current_is_public = profile.get('is_public', False)
+                    
+                    # Toggle for public/private
+                    is_public = st.toggle(
+                        "Make profile public",
+                        value=current_is_public,
+                        help="Allow other users to see your profile on the Athletes page"
+                    )
+                    
+                    # Show status message integrated with toggle
+                    if is_public:
+                        st.caption("Other users can find you, send athlete requests, and see when you attend courses")
+                    else:
+                        st.warning("🔒 Your profile is **private**")
+                        st.caption("Only you can see your profile and activity")
+                    
+                    st.markdown("")
+                    
+                    # Logout-Button ganz unten in der rechten Spalte
+                    st.markdown("---")
+                    if st.button("🚪 Logout", type="secondary", use_container_width=True):
+                        handle_logout()
 
 # =============================================================================
 # PART 10: TAB 5 - ABOUT
@@ -2679,15 +2611,15 @@ with tab_about:
     # (Data status section removed on request)
     
     # =========================================================================
-    # TWO COLUMN LAYOUT WITH SEPARATOR
+    # TWO COLUMN LAYOUT
     # =========================================================================
-    col_left, col_separator, col_right = st.columns([1, 0.05, 1])
+    col_left, col_right = st.columns(2)
     
     # =========================================================================
     # LEFT COLUMN: HOW IT WORKS
     # =========================================================================
     with col_left:
-        st.subheader("💡 How This App Works")
+        st.subheader("How This App Works")
         st.markdown("""
         **What's happening behind the scenes?**
         
@@ -2711,88 +2643,125 @@ with tab_about:
         """)
     
     # =========================================================================
-    # SEPARATOR COLUMN: VERTICAL LINE
-    # =========================================================================
-    with col_separator:
-        st.markdown(
-            """
-            <style>
-            .vertical-separator {
-                border-left: 2px solid #e0e0e0;
-                height: 100vh;
-                position: relative;
-            }
-            </style>
-            <div style="border-left: 2px solid #e0e0e0; height: 800px; margin: 0;"></div>
-            """,
-            unsafe_allow_html=True
-        )
-    
-    # =========================================================================
     # RIGHT COLUMN: PROJECT TEAM AND PROJECT BACKGROUND
     # =========================================================================
     with col_right:
         # =========================================================================
         # PROJECT TEAM
         # =========================================================================
-        st.subheader("👥 Project Team")
+        st.subheader("Project Team")
         
         # Team members with LinkedIn profiles
         # Use local images from assets/images folder
         assets_path = Path(__file__).resolve().parent / "assets" / "images"
-        team = [
-            (
-                "Tamara Nessler",
-                "https://www.linkedin.com/in/tamaranessler/",
-                str(assets_path / "tamara.jpeg"),
-            ),
-            (
-                "Till Banerjee",
-                "https://www.linkedin.com/in/till-banerjee/",
-                str(assets_path / "till.jpeg"),
-            ),
-            (
-                "Sarah Bugg",
-                "https://www.linkedin.com/in/sarah-bugg/",
-                str(assets_path / "sarah.jpeg"),
-            ),
-            (
-                "Antonia Büttiker",
-                "https://www.linkedin.com/in/antonia-büttiker-895713254/",
-                str(assets_path / "antonia.jpeg"),
-            ),
-            (
-                "Luca Hagenmayer",
-                "https://www.linkedin.com/in/lucahagenmayer/",
-                str(assets_path / "luca.jpeg"),
-            ),
+        team_members = [
+            {"name": "Tamara Nessler", "url": "https://www.linkedin.com/in/tamaranessler/", "avatar": str(assets_path / "tamara.jpeg")},
+            {"name": "Till Banerjee", "url": "https://www.linkedin.com/in/till-banerjee/", "avatar": str(assets_path / "till.jpeg")},
+            {"name": "Sarah Bugg", "url": "https://www.linkedin.com/in/sarah-bugg/", "avatar": str(assets_path / "sarah.jpeg")},
+            {"name": "Antonia Büttiker", "url": "https://www.linkedin.com/in/antonia-büttiker-895713254/", "avatar": str(assets_path / "antonia.jpeg")},
+            {"name": "Luca Hagenmayer", "url": "https://www.linkedin.com/in/lucahagenmayer/", "avatar": str(assets_path / "luca.jpeg")},
         ]
         
         # Display team in a grid (5 columns)
         cols = st.columns(5)
-        for idx, (name, url, avatar) in enumerate(team):
+        for idx, member in enumerate(team_members):
             with cols[idx]:
-                st.image(avatar, width=180)
-                st.markdown(f"**[{name}]({url})**", unsafe_allow_html=True)
+                st.image(member["avatar"], width=180)
+                st.markdown(f"[{member['name']}]({member['url']})")
         
-        st.divider()
+        # Define tasks
+        tasks = [
+            "Project organization & planning",
+            "Requirements mapping & prototyping",
+            "Frontend",
+            "Machine Learning",
+            "Backend incl. DB",
+            "Code Documentation",
+            "Testing & Bug-Fixing",
+            "Video & Cut"
+        ]
         
-        # =========================================================================
-        # PROJECT CONTEXT
-        # =========================================================================
-        st.subheader("🎓 Project Background")
-        st.markdown("""
-        This project was created for the course **"Fundamentals and Methods of Computer Science"** 
-        at the University of St.Gallen, taught by:
-        - [Prof. Dr. Stephan Aier](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/32344c07-5d2e-41f0-9ba8-d9f379bb05ee/)
-        - [Dr. Bernhard Bermeitinger](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/1fa3d0cd-cb80-410a-b2b4-dbc3f1a4ee27/)
-        - [Prof. Dr. Simon Mayer](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/b7d5efc7-55f2-4b97-9e31-ac097b6d15e1/)
+        # Contribution matrix: each row = task, each column = team member
+        # Values: 3 = Main Contribution, 2 = Contribution, 1 = Supporting Role
+        # Order: Tamara, Till, Sarah, Antonia, Luca
+        contribution_matrix = [
+            [3, 3, 3, 3, 3],  # Project organization & planning
+            [3, 1, 2, 2, 1],  # Requirements mapping & prototyping
+            [1, 2, 1, 1, 3],  # Frontend
+            [2, 3, 1, 1, 2],  # Machine Learning
+            [1, 2, 1, 1, 3],  # Backend incl. DB
+            [2, 2, 1, 1, 2],  # Code Documentation
+            [2, 3, 2, 2, 3],  # Testing & Bug-Fixing
+            [1, 1, 3, 3, 1],  # Video & Cut
+        ]
         
-        **Status:** Still in development and not yet reviewed by professors.
+        # Text labels for hover tooltips
+        label_map = {3: "Main Contribution", 2: "Contribution", 1: "Supporting Role"}
+        matrix_text = [[label_map[val] for val in row] for row in contribution_matrix]
         
-        **Feedback?** Have feature requests or found bugs? Please contact one of the team members 
-        via LinkedIn (see above).
-        """)
+        member_names = [member["name"].split()[0] for member in team_members]  # First names only
+        
+        # Create Plotly heatmap
+        # Simple approach: directly use numeric values (3, 2, 1) for colors
+        fig = go.Figure(data=go.Heatmap(
+            z=contribution_matrix,
+            x=member_names,
+            y=tasks,
+            text=matrix_text,
+            colorscale=[
+                [0.0, '#F77F00'],   # 1 = Supporting Role (Orange)
+                [0.5, '#06A77D'],   # 2 = Contribution (Green)
+                [1.0, '#2E86AB']    # 3 = Main Contribution (Blue)
+            ],
+            hovertemplate='<b>%{y}</b><br>%{x}: <b>%{text}</b><extra></extra>',
+            showscale=True,  # Hide color scale
+            xgap=2,
+            ygap=2
+        ))
+        
+        fig.update_layout(
+            title={
+                'text': 'Team Contribution Matrix',
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 20, 'family': 'Arial, sans-serif'}
+            },
+            xaxis=dict(
+                title="Team Members",
+                titlefont=dict(size=14),
+                tickfont=dict(size=12),
+                side='bottom'
+            ),
+            yaxis=dict(
+                title="",
+                titlefont=dict(size=14),
+                tickfont=dict(size=11),
+                autorange='reversed'  # Reverse order so first task is at top
+            ),
+            margin=dict(l=220, r=120, t=100, b=80),
+            plot_bgcolor='white',
+            paper_bgcolor='white'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # =========================================================================
+    # PROJECT CONTEXT (Full width below the two columns)
+    # =========================================================================
+    st.divider()
+    st.subheader("Project Background")
+    st.markdown("""
+    This project was created for the course **"Fundamentals and Methods of Computer Science"** 
+    at the University of St.Gallen, taught by:
+    - [Prof. Dr. Stephan Aier](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/32344c07-5d2e-41f0-9ba8-d9f379bb05ee/)
+    - [Dr. Bernhard Bermeitinger](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/1fa3d0cd-cb80-410a-b2b4-dbc3f1a4ee27/)
+    - [Prof. Dr. Simon Mayer](https://www.unisg.ch/de/universitaet/ueber-uns/organisation/detail/person-id/b7d5efc7-55f2-4b97-9e31-ac097b6d15e1/)
+    
+    **Status:** Still in development and not yet reviewed by professors.
+    
+    **Feedback?** Have feature requests or found bugs? Please contact one of the team members 
+    via LinkedIn (see above).
+    """)
 
 
 # Parts of this codebase were developed with the assistance of AI-based tools (Cursor and Github Copilot)
