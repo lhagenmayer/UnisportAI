@@ -208,7 +208,10 @@ def filter_offers(
         
         # Check intensity
         intensity_value = offer.get('intensity')
-        has_intensity = bool(intensity_value and intensity_value.strip())
+        if isinstance(intensity_value, str):
+            has_intensity = bool(intensity_value and intensity_value.strip())
+        else:
+            has_intensity = bool(intensity_value)
         
         if not (has_focus or has_setting or has_intensity):
             continue

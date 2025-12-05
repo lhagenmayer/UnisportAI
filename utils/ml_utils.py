@@ -473,8 +473,8 @@ def get_merged_recommendations(
             - 'offer': Complete sport offer dictionary
         Sorted by match_score descending
     """
-    from utils.filters import filter_offers, filter_events
-    from utils.db import get_events
+    from .filters import filter_offers, filter_events
+    from .db import get_events
     
     # STEP 1: Get filtered results (hard filters: intensity/focus/setting)
     filtered_results = filter_offers(
