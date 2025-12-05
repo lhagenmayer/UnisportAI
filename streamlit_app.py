@@ -1359,6 +1359,12 @@ with tab_overview:
             
             # STREAMLIT CONCEPT: st.expander makes the whole card expandable
             with st.expander(expander_label, expanded=False):
+                # Display course image if available
+                image_url = offer.get('image_url')
+                if image_url:
+                    st.image(image_url, use_container_width=True)
+                    st.markdown("")  # Add spacing after image
+                
                 # Compact metadata display using DataFrame table
                 # Prepare data
                 intensity_value = offer.get('intensity') or ''
