@@ -205,11 +205,6 @@ def get_ml_training_data_cli():
     return response.data
 
 # =============================================================================
-# UTILITIES
-# =============================================================================
-# PURPOSE: Utility functions for database operations
-
-# =============================================================================
 # MAIN DATA QUERIES
 # =============================================================================
 # PURPOSE: Core functions for loading offers and events from the database
