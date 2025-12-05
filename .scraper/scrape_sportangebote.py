@@ -457,7 +457,7 @@ def main():
     # Save trainers
     all_trainers = []
     for trainer_name in trainer_to_courses.keys():
-        all_trainers.append({"name": trainer_name, "rating": 3})
+        all_trainers.append({"name": trainer_name})
     
     if all_trainers:
         supabase.table("trainer").upsert(all_trainers, on_conflict="name").execute()

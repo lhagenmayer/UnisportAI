@@ -14,7 +14,6 @@ auth.py: Functions for user login, logout, and checking if someone is logged in
 user.py: Functions for managing user profiles, favorites, and preferences
 filters.py: Functions for filtering events and offers based on user criteria
 ml_utils.py: Functions for machine learning recommendations
-rating.py: Functions for rating widgets (letting users rate sports and trainers)
 formatting.py: Functions for formatting HTML and creating nice looking cards
 
 WHY WAS THIS PACKAGE CREATED?

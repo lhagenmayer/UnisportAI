@@ -6,13 +6,12 @@ The app focuses on:
 
 - **Discovery**: Find sports activities that match your intensity, focus and setting preferences.
 - **Filtering**: Powerful sidebar filters for time, location, weekday and more.
-- **Ratings**: Rate activities and trainers and see community feedback.
 - **Personalization**: Save filter defaults and favourites per user.
 
 All of the content below is **fully up to date** with the current project structure:
 
 - `streamlit_app.py` - Main application entry point
-- `utils/` - Utility modules (auth, db, rating, filters, ml_utils, formatting)
+- `utils/` - Utility modules (auth, db, filters, ml_utils, formatting)
 - `ml/` - ML training utilities and model artifacts
 
 ---
@@ -35,7 +34,7 @@ All of the content below is **fully up to date** with the current project struct
 
 - **Sports overview**
   - List of all sports offers from the `vw_offers_complete` Supabase view
-  - Aggregated stats: average rating, rating count, upcoming events
+  - Aggregated stats: upcoming events
 - **Rich filter sidebar**
   - **Activity Type**
     - Intensity (Low / Moderate / High)
@@ -55,21 +54,6 @@ All of the content below is **fully up to date** with the current project struct
   - Table view of upcoming course dates (from `vw_termine_full`)
   - Cancellation status, location and trainers per event
 
-### ⭐ Ratings & Social Layer
-
-- **Activity ratings**
-  - Users can rate each sport (1–5 stars) and leave comments
-  - Ratings are stored in `sportangebote_user_ratings`
-  - Average ratings and counts are shown in the UI and analytics views
-- **Trainer ratings**
-  - Trainers have their own rating stream (`trainer_user_ratings`)
-  - Dedicated widgets to rate and review trainers
-  - Overview of trainer ratings in the course dates tab
-- **Public profiles & social graph**
-  - Users can mark their profile as public
-  - Public athletes can be discovered in the “Athletes” tab
-  - Friendships & friend requests are managed in `user_friends` / `friend_requests`
-
 ### 🤖 Machine Learning Recommendations
 
 - **K‑Nearest Neighbours (KNN) recommender**
@@ -85,10 +69,6 @@ All of the content below is **fully up to date** with the current project struct
 
 ### 📊 Analytics & Visualisations
 
-- **Rating distribution**
-  - Histogram over average ratings of sports
-- **Top rated sports**
-  - Horizontal bar chart of the best rated sports with min rating count
 - **ML feature analysis**
   - Radar chart for sport feature profiles
   - Feature variance chart showing which features are most discriminative
@@ -241,14 +221,10 @@ The app expects a PostgreSQL database (via Supabase) with at least the following
 - `sportkurse` – course definitions grouped by course number
 - `kurs_termine` – individual course dates (time, location, cancellation flag)
 - `unisport_locations` – physical locations with coordinates and indoor/outdoor flag
-- `sportangebote_user_ratings` – user ratings for sports
-- `trainer` – trainers with base metadata and default rating
-- `trainer_user_ratings` – user ratings for trainers
-- `user_friends` – friendship graph between users
-- `friend_requests` – pending and historical friend requests
+- `trainer` – trainers with base metadata
 - `etl_runs` – simple ETL bookkeeping table for scraper components
 - `ml_training_data` (view) – feature matrix for the ML recommender
-- `vw_offers_complete` (view) – enriched sports offers with ratings, event counts & trainers
+- `vw_offers_complete` (view) – enriched sports offers with event counts & trainers
 - `vw_termine_full` (view) – enriched upcoming course dates with trainer and location data
 
 ### Creating the schema from this repository
@@ -274,7 +250,6 @@ UnisportAI/
 │   ├── __init__.py     # Package exports
 │   ├── auth.py         # Authentication helpers (Streamlit + Google OAuth)
 │   ├── db.py           # Supabase data access layer
-│   ├── rating.py       # Rating widgets for sports & trainers
 │   ├── filters.py      # Event and offer filtering logic
 │   ├── ml_utils.py     # ML model loading and recommendations
 │   └── formatting.py   # HTML formatting utilities
@@ -314,14 +289,8 @@ UnisportAI/
     - `get_events(offer_href)`
     - `get_user_complete(user_sub)`
     - `update_user_settings(...)`
-    - `get_public_users()`, `get_user_friends()`, friend request helpers
-    - Ratings helpers and ML training data loaders
+    - ML training data loaders
     - `get_data_timestamp()` – ETL run timestamp retrieval
-
-- **`utils/rating.py`**
-  - Streamlit UI components for ratings
-  - Uses `utils.rating.submit_*_rating` and `utils.db` rating queries
-  - Expander‑based widgets for activities and trainers
 
 - **`utils/filters.py`**
   - Event and offer filtering logic

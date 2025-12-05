@@ -19,7 +19,7 @@ Browser ↔ Streamlit widgets
            ↓
     streamlit_app.py
            ↓
-    utils service modules (auth/db/ml/filters/rating/formatting)
+    utils service modules (auth/db/ml/filters/formatting)
            ↓
     Supabase (managed Postgres + cached views)
 
@@ -135,8 +135,6 @@ def initialize_session_state():
         'min_match_score': 0,
         
         # UI states
-        'show_activity_rating': False,
-        'show_trainer_rating': False,
         
         # Data states (will be populated from database)
         'sports_data': None,
@@ -599,12 +597,16 @@ def render_analytics_section():
     with col2:
         # 2. Kursverfügbarkeit nach Tageszeit
         if hour_data:
-            hours = list(hour_data.keys())
-            counts = list(hour_data.values())
+            # Filter: Nur Stunden zwischen 6 und 22 Uhr
+            filtered_hours = {h: hour_data.get(h, 0) for h in range(6, 23)}
+            
+            # Formatierung: Stunden als "06:00", "07:00", etc.
+            hours_formatted = [f"{h:02d}:00" for h in range(6, 23)]
+            counts = [filtered_hours[h] for h in range(6, 23)]
             
             fig = go.Figure(data=[
                 go.Bar(
-                    x=hours,
+                    x=hours_formatted,
                     y=counts,
                     marker_color='#F77F00',
                     text=counts,
@@ -613,14 +615,21 @@ def render_analytics_section():
             ])
             fig.update_layout(
                 title=dict(text="Course Availability by Time of Day", x=0.5, xanchor='center', font=dict(size=18, family='Arial', color='#000000')),
-                xaxis_title="Hour (0-23)",
+                xaxis_title="Uhrzeit",
                 yaxis_title="Number of Courses",
                 height=300,
                 margin=dict(l=20, r=20, t=50, b=20),
                 paper_bgcolor='#FFFFFF',
                 plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(family='Inter, system-ui, sans-serif', size=12),
-                xaxis=dict(tickmode='linear', tick0=0, dtick=2, gridcolor='rgba(108, 117, 125, 0.1)', showgrid=True),
+                xaxis=dict(
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=2,
+                    gridcolor='rgba(108, 117, 125, 0.1)',
+                    showgrid=True,
+                    tickangle=-45
+                ),
                 yaxis=dict(gridcolor='rgba(108, 117, 125, 0.1)', showgrid=True)
             )
             st.plotly_chart(fig, width="stretch")
@@ -1212,10 +1221,9 @@ except Exception as e:
 #     - The details tab reads that value and shows the corresponding data.
 #     - The user then manually switches to the "📅 Course Dates" tab.
 
-tab_overview, tab_details, tab_athletes, tab_profile, tab_about = st.tabs([
+tab_overview, tab_details, tab_profile, tab_about = st.tabs([
     "🎯 Sports Overview",
     "📅 Course Dates",
-    "👥 Athletes",
     "⚙️ My Profile",
     "ℹ️ About"
 ])
@@ -1569,11 +1577,6 @@ with tab_overview:
                         trainer_names.append(f"+{len(trainers)-2}")
                     trainers_display = ', '.join(trainer_names)
                 
-                rating_display = "No reviews"
-                if offer.get('rating_count', 0) > 0:
-                    rating = offer.get('avg_rating', 0)
-                    rating_display = f"{rating:.1f} ({offer['rating_count']})"
-                
                 # Create DataFrame with single row
                 metadata_df = pd.DataFrame({
                     'Match': [f"{match_score:.0f}%"],
@@ -1581,8 +1584,7 @@ with tab_overview:
                     'Focus': [focus_display],
                     'Setting': [setting_display],
                     'Upcoming': [filtered_count if filtered_count > 0 else 0],
-                    'Trainers': [trainers_display],
-                    'Rating': [rating_display]
+                    'Trainers': [trainers_display]
                 })
                 
                 # Display as compact table
@@ -1687,7 +1689,7 @@ with tab_overview:
 # PART 7: TAB 2 - COURSE DATES
 # =============================================================================
 # PURPOSE: Show detailed course dates and event information
-# STREAMLIT CONCEPT: Event filtering, date/time displays, rating widgets
+# STREAMLIT CONCEPT: Event filtering, date/time displays
 # FOR BEGINNERS: This shows how to display detailed, filterable event lists
 
 with tab_details:
@@ -1696,12 +1698,6 @@ with tab_details:
         get_events,
         get_user_id_by_sub,
         get_offers_complete
-    )
-    from utils.rating import (
-        render_sportangebot_rating_widget,
-        render_trainer_rating_widget,
-        get_average_rating_for_offer,
-        get_average_rating_for_trainer
     )
     
     # =========================================================================
@@ -1756,17 +1752,11 @@ with tab_details:
                     setting_list.append(s.capitalize())
             setting_display = ', '.join(setting_list)
         
-        rating_info = get_average_rating_for_offer(selected['href'])
-        rating_display = "No reviews"
-        if rating_info['count'] > 0:
-            rating_display = f"{rating_info['avg']:.1f} ({rating_info['count']})"
-        
         # Create DataFrame with single row
         metadata_df = pd.DataFrame({
             'Intensity': [intensity_display],
             'Focus': [focus_display],
-            'Setting': [setting_display],
-            'Rating': [rating_display]
+            'Setting': [setting_display]
         })
         
         # Display as compact table
@@ -1775,75 +1765,6 @@ with tab_details:
             use_container_width=True,
             hide_index=True
         )
-        
-        # ================================================================
-        # RATING SECTION (only for logged-in users, placed prominently)
-        # ================================================================
-        if is_logged_in():
-            # Collect trainers from selected offer (events loaded later)
-            all_trainers = set()
-            if selected.get('trainers'):
-                for trainer in selected.get('trainers', []):
-                    if isinstance(trainer, dict):
-                        trainer_name = trainer.get('name')
-                    else:
-                        trainer_name = trainer
-                    if trainer_name:
-                        all_trainers.add(trainer_name)
-            
-            # Show ratings in an expandable section (closed by default)
-            if all_trainers or selected:
-                with st.expander("### ⭐ Rate & Review", expanded=False):
-                    # Trainer ratings section
-                    if all_trainers:
-                        st.markdown("**Trainers**")
-                        for idx, trainer_name in enumerate(sorted(all_trainers)):
-                            rating_info = get_average_rating_for_trainer(trainer_name)
-                            
-                            # Compact trainer display with rating info
-                            col1, col2 = st.columns([3, 1])
-                            with col1:
-                                if rating_info['count'] > 0:
-                                    stars = '⭐' * int(round(rating_info['avg']))
-                                    st.markdown(f"**{trainer_name}** {stars} {rating_info['avg']:.1f}/5 ({rating_info['count']})")
-                                else:
-                                    st.markdown(f"**{trainer_name}** - No reviews yet")
-                            
-                            with col2:
-                                if st.button("Rate", key=f"rate_trainer_btn_{trainer_name}", use_container_width=True):
-                                    st.session_state[f"show_trainer_rating_{trainer_name}"] = not st.session_state.get(f"show_trainer_rating_{trainer_name}", False)
-                                    st.rerun()
-                            
-                            # Show rating widget if button was clicked
-                            if st.session_state.get(f"show_trainer_rating_{trainer_name}", False):
-                                render_trainer_rating_widget(trainer_name)
-                            
-                            if idx < len(sorted(all_trainers)) - 1:  # Don't show divider after last trainer
-                                st.divider()
-                        
-                        if selected:
-                            st.divider()
-                    
-                    # Activity rating section
-                    if selected:
-                        st.markdown("**Activity**")
-                        rating_info = get_average_rating_for_offer(selected['href'])
-                        col1, col2 = st.columns([3, 1])
-                        with col1:
-                            if rating_info['count'] > 0:
-                                stars = '⭐' * int(round(rating_info['avg']))
-                                st.markdown(f"**{selected.get('name', 'Activity')}** {stars} {rating_info['avg']:.1f}/5 ({rating_info['count']} reviews)")
-                            else:
-                                st.markdown(f"**{selected.get('name', 'Activity')}** - No reviews yet")
-                        
-                        with col2:
-                            if st.button("Rate", key="rate_activity_btn", use_container_width=True):
-                                st.session_state["show_activity_rating"] = not st.session_state.get("show_activity_rating", False)
-                                st.rerun()
-                        
-                        # Show rating widget if button was clicked
-                        if st.session_state.get("show_activity_rating", False):
-                            render_sportangebot_rating_widget(selected['href'])
         
         st.divider()
     
@@ -2009,452 +1930,6 @@ with tab_details:
                     }
                 )
             
-
-# =============================================================================
-# PART 8: TAB 3 - ATHLETES
-# =============================================================================
-# PURPOSE: Social features - discover athletes, send/receive athlete requests
-# STREAMLIT CONCEPT: Authentication gates, database queries, user interactions
-# FOR BEGINNERS: This shows how to build social features in Streamlit
-
-with tab_athletes:
-    # =========================================================================
-    # CHECK LOGIN STATUS
-    # =========================================================================
-    # This tab requires authentication - check if user is logged in
-    # PATTERN: Early return pattern for authentication gates
-    
-    if not is_logged_in():
-        # User is NOT logged in - show info message
-        st.info("🔒 **Login required** - Sign in with Google in the sidebar")
-        
-        st.markdown("""
-        ### Why sign in?
-        - 👥 **Discover Athletes** - Find and connect with other sports enthusiasts
-        - 📩 **Athlete Requests** - Send and receive athlete requests
-        - 🤝 **Build Your Network** - Connect with your sports community
-        - ⭐ **Rate & Review** - Share your experience with courses and trainers
-        """)
-        # Don't use st.stop() - it stops the entire app, preventing other tabs from loading
-    else:
-        # =========================================================================
-        # IMPORT FUNCTIONS (only if logged in)
-        # =========================================================================
-        from utils.db import (
-            get_user_id_by_sub,
-            get_public_users,
-            get_friend_status,
-            send_friend_request,
-            accept_friend_request,
-            reject_friend_request,
-            unfollow_user,
-            get_pending_friend_requests,
-            get_user_friends,
-            get_user_by_id,
-            get_favorite_sports_with_details_by_id
-        )
-        
-        # =========================================================================
-        # GET CURRENT USER ID
-        # =========================================================================
-        # Helper function to get current user's database ID
-        def get_current_user_id():
-            """
-            Get the current user's database ID.
-            
-            PURPOSE: Convert authentication sub to database user ID
-            PATTERN: Try to get existing, sync if missing
-            
-            Returns:
-                User ID (int) or None if error
-            """
-            user_sub = get_user_sub()
-            if not user_sub:
-                return None
-            
-            # Try to get existing user from database
-            user_id = get_user_id_by_sub(user_sub)
-            
-            # If user doesn't exist, try to sync
-            if not user_id:
-                try:
-                    sync_user_to_supabase()
-                    user_id = get_user_id_by_sub(user_sub)
-                except:
-                    pass
-            
-            return user_id
-        
-        # Get current user's ID
-        try:
-            current_user_id = get_current_user_id()
-        except Exception as e:
-            st.error(f"❌ Error loading your profile: {str(e)}")
-            current_user_id = None
-        
-        if not current_user_id:
-            st.error("❌ Error loading your profile. User not found in database.")
-            st.info("💡 Try logging out and logging back in.")
-            # Don't use st.stop() - it stops the entire app
-        else:
-                # =========================================================================
-                # PAGE HEADER
-                # =========================================================================
-                # No header text - cleaner design
-                
-                # =========================================================================
-                # TWO-COLUMN LAYOUT WITH SEPARATOR
-                # =========================================================================
-                # STREAMLIT CONCEPT: Three-column layout with narrow middle column for separator
-                col_left, col_sep, col_right = st.columns([1, 0.03, 1])
-                
-                # Vertical separator removed - using column spacing instead
-                
-                # =========================================================================
-                # LEFT COLUMN: DISCOVER ATHLETES
-                # =========================================================================
-                with col_left:
-                    st.subheader("🔍 Discover New Athletes")
-                    st.caption("Find and connect with athletes who have public profiles")
-                    
-                    # Load public users from database
-                    with st.spinner('🔄 Loading athletes...'):
-                        public_users = get_public_users()
-                    
-                    if not public_users:
-                        st.info("📭 No public profiles available yet.")
-                        st.caption("Be the first to make your profile public in Settings!")
-                    else:
-                        # Filter out own profile and friends (only if user is logged in)
-                        friend_ids = set()
-                        friends = []
-                        
-                        if current_user_id:
-                            # Get list of friend IDs to exclude them from discover list
-                            try:
-                                friends = get_user_friends(current_user_id)
-                                # Safely extract friend IDs, handling cases where 'id' might be missing
-                                if friends:
-                                    for friend in friends:
-                                        if friend and 'id' in friend and friend['id']:
-                                            friend_ids.add(friend['id'])
-                            except Exception as e:
-                                # If there's an error loading friends, just use empty set
-                                friend_ids = set()
-                                friends = []
-                                st.warning(f"⚠️ Could not load friends list: {e}")
-                        
-                        filtered_public_users = []
-                        for u in public_users:
-                            # Only include if it's not the current user and not a friend
-                            user_id = u.get('id')
-                            if user_id:
-                                # If no current_user_id, show all public users
-                                if not current_user_id:
-                                    filtered_public_users.append(u)
-                                # Otherwise, filter out own profile and friends
-                                elif user_id != current_user_id and user_id not in friend_ids:
-                                    filtered_public_users.append(u)
-                        public_users = filtered_public_users
-                        
-                        if not public_users:
-                            st.info("📭 No new athletes to discover.")
-                            if friends and len(friends) > 0:
-                                st.caption(f"You're already connected with {len(friends)} athlete{'s' if len(friends) != 1 else ''}. Check 'My Athletes' to see them!")
-                            else:
-                                st.caption("Be the first to make your profile public in Settings!")
-                        else:
-                            # Show count of discoverable athletes
-                            athlete_count = len(public_users)
-                            st.caption(f"**{athlete_count} athlete{'s' if athlete_count != 1 else ''} to discover**")
-                            st.markdown("")  # Add spacing
-                            
-                            # Display each user as a card
-                            for user in public_users:
-                                with st.container(border=True):
-                                    # Three columns: picture, info, action
-                                    col_pic, col_info, col_action = st.columns([1, 4, 2])
-                                    
-                                    with col_pic:
-                                        # Show profile picture or initials
-                                        if user.get('picture') and str(user['picture']).startswith('http'):
-                                            st.image(user['picture'], width=100)
-                                        else:
-                                            # Create initials avatar using Streamlit-native approach
-                                            name = user.get('name', 'U')
-                                            name_words = name.split()[:2]
-                                            initials_list = []
-                                            for word in name_words:
-                                                if word:
-                                                    initials_list.append(word[0].upper())
-                                            initials = ''.join(initials_list)
-                                            st.markdown(f"### {initials}")
-                                    
-                                    with col_info:
-                                        st.markdown(f"### {user.get('name', 'Unknown')}")
-                                        
-                                        # Bio preview (first 120 characters)
-                                        if user.get('bio'):
-                                            bio = user['bio']
-                                            if len(bio) > 120:
-                                                preview = bio[:120] + "..."
-                                            else:
-                                                preview = bio
-                                            st.caption(preview)
-                                        
-                                        # Metadata (email and join date)
-                                        metadata = []
-                                        if user.get('email'):
-                                            metadata.append(f"📧 {user['email']}")
-                                        if user.get('created_at'):
-                                            join_date = user['created_at'][:10]
-                                            metadata.append(f"📅 Joined {join_date}")
-                                        
-                                        if metadata:
-                                            st.caption(' • '.join(metadata))
-                                        
-                                        # Favorite Sports (only if user is public)
-                                        if user.get('is_public', False):
-                                            user_favorites = get_favorite_sports_with_details_by_id(user['id'])
-                                            if user_favorites:
-                                                st.markdown("**Favorite Sports:**")
-                                                # Display favorites as badges
-                                                favorite_names = []
-                                                for fav in user_favorites:
-                                                    fav_name = fav.get('name', 'Unknown')
-                                                    fav_icon = fav.get('icon', '🏃')
-                                                    favorite_names.append(f"{fav_icon} {fav_name}")
-                                                
-                                                # Display as comma-separated badges
-                                                if favorite_names:
-                                                    st.caption(' • '.join(favorite_names))
-                                    
-                                    with col_action:
-                                        st.write("")  # Spacing
-                                        
-                                        # Check friendship status
-                                        status = get_friend_status(current_user_id, user['id'])
-                                        
-                                        # Show different UI based on status
-                                        if status == "friends":
-                                            st.success("✓ Connected")
-                                            if st.button("🗑️ Unfriend", key=f"unfollow_{user['id']}", use_container_width=True):
-                                                if unfollow_user(current_user_id, user['id']):
-                                                    st.success("✅ Unfriended")
-                                                    st.rerun()
-                                        
-                                        elif status == "request_sent":
-                                            st.info("⏳ Pending")
-                                        
-                                        elif status == "request_received":
-                                            st.warning("📨 Respond")
-                                        
-                                        else:
-                                            # No relationship - show add friend button
-                                            if st.button(
-                                                "➕ Add Friend",
-                                                key=f"request_{user['id']}",
-                                                use_container_width=True,
-                                                type="primary"
-                                            ):
-                                                if send_friend_request(current_user_id, user['id']):
-                                                    st.success("✅ Request sent!")
-                                                    st.rerun()
-                                                else:
-                                                    st.warning("Request already pending")
-                
-                # =========================================================================
-                # RIGHT COLUMN: MY ATHLETES
-                # =========================================================================
-                with col_right:
-                    # My Athletes section
-                    st.subheader("👥 My Connected Athletes")
-                    st.caption("Athletes you're connected with")
-                    
-                    # Athlete Requests Expander under the title
-                    with st.expander("📩 Athlete Requests", expanded=False):
-                        # Load pending athlete requests
-                        with st.spinner('🔄 Loading requests...'):
-                            requests = get_pending_friend_requests(current_user_id)
-                        
-                        if not requests:
-                            st.info("📭 No pending athlete requests.")
-                            st.caption("You'll see requests here when other athletes want to connect with you.")
-                        else:
-                            request_count = len(requests)
-                            if request_count != 1:
-                                request_text = "requests"
-                            else:
-                                request_text = "request"
-                            st.caption(f"**{request_count}** pending {request_text}")
-                
-                # Display each request
-                for req in requests:
-                    with st.container(border=True):
-                        # Extract requester info (with fallback)
-                        requester = req.get('requester', {})
-                        if isinstance(requester, dict) and len(requester) > 0:
-                            requester_name = requester.get('name', 'Unknown')
-                            requester_picture = requester.get('picture')
-                            requester_email = requester.get('email', '')
-                        else:
-                            # Fallback: query user separately
-                            try:
-                                requester_data = get_user_by_id(req['requester_id'])
-                                if requester_data:
-                                    requester_name = requester_data.get('name', 'Unknown')
-                                    requester_picture = requester_data.get('picture')
-                                    requester_email = requester_data.get('email', '')
-                                else:
-                                    requester_name = "Unknown"
-                                    requester_picture = None
-                                    requester_email = ""
-                            except:
-                                requester_name = "Unknown"
-                                requester_picture = None
-                                requester_email = ""
-                        
-                        # Three columns: picture, info, action
-                        col_pic, col_info, col_action = st.columns([1, 4, 2])
-                        
-                        with col_pic:
-                            if requester_picture and str(requester_picture).startswith('http'):
-                                st.image(requester_picture, width=80)
-                            else:
-                                # Create initials avatar using Streamlit-native approach
-                                initials = ''.join([word[0].upper() for word in requester_name.split()[:2]])
-                                st.markdown(f"**{initials}**")
-                        
-                        with col_info:
-                            st.markdown(f"### {requester_name}")
-                            
-                            # Metadata
-                            metadata = []
-                            if requester_email:
-                                metadata.append(f"📧 {requester_email}")
-                            if req.get('created_at'):
-                                request_date = req['created_at'][:10]
-                                metadata.append(f"📅 Requested {request_date}")
-                            
-                            if metadata:
-                                st.caption(' • '.join(metadata))
-                            
-                            # Favorite Sports (only if requester is public)
-                            # Check if requester is public by getting their user data
-                            try:
-                                requester_user_data = get_user_by_id(req['requester_id'])
-                                if requester_user_data and requester_user_data.get('is_public', False):
-                                    requester_favorites = get_favorite_sports_with_details_by_id(req['requester_id'])
-                                    if requester_favorites:
-                                        st.markdown("**Favorite Sports:**")
-                                        # Display favorites as badges
-                                        favorite_names = []
-                                        for fav in requester_favorites:
-                                            fav_name = fav.get('name', 'Unknown')
-                                            fav_icon = fav.get('icon', '🏃')
-                                            favorite_names.append(f"{fav_icon} {fav_name}")
-                                        
-                                        # Display as comma-separated badges
-                                        if favorite_names:
-                                            st.caption(' • '.join(favorite_names))
-                            except:
-                                pass  # If we can't get user data, just skip favorites
-                        
-                        with col_action:
-                            st.write("")  # Spacing
-                            
-                            # Accept button
-                            if st.button(
-                                "✅ Accept",
-                                key=f"accept_{req['id']}",
-                                use_container_width=True,
-                                type="primary"
-                            ):
-                                if accept_friend_request(req['id'], req['requester_id'], req['addressee_id']):
-                                    # Clear cache to refresh friends list
-                                    get_user_friends.clear()
-                                    st.success("✅ Athlete request accepted!")
-                                    st.rerun()
-                            
-                            # Decline button
-                            if st.button("❌ Decline", key=f"reject_{req['id']}", use_container_width=True):
-                                if reject_friend_request(req['id']):
-                                    st.success("Request declined")
-                                    st.rerun()
-        
-        st.markdown("")
-        
-        # Load friends list
-        with st.spinner('🔄 Loading athletes...'):
-            friends = get_user_friends(current_user_id)
-        
-        if not friends:
-            st.info("👋 No athletes connected yet - start connecting with other athletes!")
-            st.caption("Browse the 'Discover Athletes' section to send athlete requests.")
-        else:
-            # Remove duplicates by tracking unique IDs (do this first)
-            seen_ids = set()
-            unique_friends = []
-            for friend in friends:
-                friend_id = friend.get('id')
-                if friend_id and friend_id not in seen_ids:
-                    seen_ids.add(friend_id)
-                    unique_friends.append(friend)
-            
-            # Show count of connected athletes (after deduplication)
-            friend_count = len(unique_friends)
-            st.caption(f"**{friend_count} connected athlete{'s' if friend_count != 1 else ''}**")
-            st.markdown("")  # Add spacing
-            
-            # Display each friend
-            for friend in unique_friends:
-                with st.container(border=True):
-                    # Two columns: picture and info
-                    col_pic, col_info = st.columns([1, 5])
-                    
-                    with col_pic:
-                        if friend.get('picture') and str(friend['picture']).startswith('http'):
-                            st.image(friend['picture'], width=80)
-                        else:
-                            # Create initials avatar using Streamlit-native approach
-                            name = friend.get('name', 'U')
-                            initials = ''.join([word[0].upper() for word in name.split()[:2]])
-                            st.markdown(f"**{initials}**")
-                    
-                    with col_info:
-                        st.markdown(f"### {friend.get('name', 'Unknown')}")
-                        
-                        # Metadata
-                        metadata = []
-                        if friend.get('email'):
-                            metadata.append(f"📧 {friend['email']}")
-                        if friend.get('bio'):
-                            friend_bio = friend['bio']
-                            if len(friend_bio) > 80:
-                                bio_preview = friend_bio[:80] + "..."
-                            else:
-                                bio_preview = friend_bio
-                            metadata.append(bio_preview)
-                        
-                        if metadata:
-                            st.caption(' • '.join(metadata))
-                        
-                        # Favorite Sports (only if user is public)
-                        if friend.get('is_public', False):
-                            friend_favorites = get_favorite_sports_with_details_by_id(friend['id'])
-                            if friend_favorites:
-                                st.markdown("**Favorite Sports:**")
-                                # Display favorites as badges
-                                favorite_names = []
-                                for fav in friend_favorites:
-                                    fav_name = fav.get('name', 'Unknown')
-                                    fav_icon = fav.get('icon', '🏃')
-                                    favorite_names.append(f"{fav_icon} {fav_name}")
-                                
-                                # Display as comma-separated badges
-                                if favorite_names:
-                                    st.caption(' • '.join(favorite_names))
-
 # =============================================================================
 # PART 9: TAB 4 - MY PROFILE
 # =============================================================================
@@ -2472,8 +1947,6 @@ with tab_profile:
         st.markdown("""
         ### What you can do with a profile:
         - 📋 **View Your Info** - See your account details (name, email, member since)
-        - 🌐 **Control Visibility** - Decide who can see your profile (public or private)
-        - 👥 **Track Social Stats** - See your athletes and social connections
         """)
         # Don't use st.stop() - it stops the entire app, preventing other tabs from loading
     else:
@@ -2483,12 +1956,7 @@ with tab_profile:
         import json
         from utils.db import (
             get_user_complete,
-            get_offers_complete,
-            update_user_settings,
-            get_user_favorite_sports,
-            get_favorite_sports_with_details,
-            add_favorite_sport,
-            remove_favorite_sport
+            update_user_settings
         )
         
         # =========================================================================
@@ -2544,122 +2012,8 @@ with tab_profile:
                     
                     st.markdown("")
                 
-                # =========================================================================
-                # SEPARATOR COLUMN: Removed - using column spacing instead
-                # =========================================================================
-                
-                # =========================================================================
-                # RIGHT COLUMN: SETTINGS
-                # =========================================================================
+                # Logout-Button ganz unten in der rechten Spalte
                 with col_right:
-                    st.subheader("Settings")
-                    
-                    # =========================================================================
-                    # PROFILE VISIBILITY
-                    # =========================================================================
-                    st.markdown("#### Profile Visibility")
-                    
-                    # Get current visibility setting
-                    current_is_public = profile.get('is_public', False)
-                    
-                    # Toggle for public/private
-                    is_public = st.toggle(
-                        "Make profile public",
-                        value=current_is_public,
-                        help="Allow other users to see your profile on the Athletes page"
-                    )
-                    
-                    # Show status message integrated with toggle
-                    if is_public:
-                        st.caption("Other users can find you, send athlete requests, and see when you attend courses")
-                    else:
-                        st.warning("🔒 Your profile is **private**")
-                        st.caption("Only you can see your profile and activity")
-                    
-                    # Save visibility setting if changed
-                    if is_public != current_is_public:
-                        if update_user_settings(user_sub, visibility=is_public):
-                            st.success("✅ Visibility setting saved!")
-                            st.rerun()
-                    
-                    st.markdown("")
-                    
-                    # =========================================================================
-                    # FAVORITE SPORTS
-                    # =========================================================================
-                    st.markdown("#### Favorite Sports")
-                    
-                    # Load current favorites
-                    current_favorites = get_user_favorite_sports(user_sub)
-                    
-                    # Load all available sports
-                    all_offers = get_offers_complete()
-                    
-                    # Create a mapping of href to display name for the multiselect
-                    sport_options = {}
-                    for offer in all_offers:
-                        href = offer.get('href')
-                        name = offer.get('name', 'Unknown')
-                        if href:
-                            sport_options[href] = name
-                    
-                    # Multiselect widget for selecting favorites
-                    selected_favorites = st.multiselect(
-                        "Select your favorite sports",
-                        options=list(sport_options.keys()),
-                        default=current_favorites,
-                        format_func=lambda x: sport_options.get(x, x),
-                        help="Choose multiple sports that you like. These will be visible to other users on your profile."
-                    )
-                    
-                    # Show current favorites with remove option
-                    if current_favorites:
-                        st.markdown("**Your current favorites:**")
-                        favorite_details = get_favorite_sports_with_details(user_sub)
-                        for fav_detail in favorite_details:
-                            fav_href = fav_detail.get('href')
-                            fav_name = fav_detail.get('name', 'Unknown')
-                            fav_icon = fav_detail.get('icon', '🏃')
-                            
-                            col_fav_name, col_fav_remove = st.columns([4, 1])
-                            with col_fav_name:
-                                st.markdown(f"{fav_icon} {fav_name}")
-                            with col_fav_remove:
-                                if st.button("🗑️", key=f"remove_fav_{fav_href}", help="Remove this favorite"):
-                                    if remove_favorite_sport(user_sub, fav_href):
-                                        st.success(f"✅ Removed {fav_name} from favorites")
-                                        st.rerun()
-                    
-                    # Save button for favorites
-                    if st.button("💾 Save Favorites", type="primary", use_container_width=True):
-                        # Calculate differences
-                        to_add = set(selected_favorites) - set(current_favorites)
-                        to_remove = set(current_favorites) - set(selected_favorites)
-                        
-                        success = True
-                        errors = []
-                        
-                        # Add new favorites
-                        for href in to_add:
-                            if not add_favorite_sport(user_sub, href):
-                                success = False
-                                errors.append(f"Failed to add {sport_options.get(href, href)}")
-                        
-                        # Remove favorites that were deselected
-                        for href in to_remove:
-                            if not remove_favorite_sport(user_sub, href):
-                                success = False
-                                errors.append(f"Failed to remove {sport_options.get(href, href)}")
-                        
-                        if success:
-                            st.success("✅ Favorites saved!")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Some errors occurred: {', '.join(errors)}")
-                    
-                    st.markdown("")
-                    
-                    # Logout-Button ganz unten in der rechten Spalte
                     st.markdown("---")
                     if st.button("🚪 Logout", type="secondary", use_container_width=True):
                         handle_logout()
@@ -2698,7 +2052,7 @@ with tab_about:
            displays it here in real-time.
         
         4. **Smart Features:** AI-powered recommendations using Machine Learning (KNN algorithm), 
-           advanced filtering system, ratings, and social networking.
+           advanced filtering system.
         
         **Tech Stack:**
         - **Frontend:** Streamlit (Python web framework)
