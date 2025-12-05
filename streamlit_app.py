@@ -232,25 +232,17 @@ with st.sidebar:
             
             # Create profile card using native Streamlit components
             with st.container():
-                # Center the content using columns
-                col_left, col_center, col_right = st.columns([1, 2, 1])
+                # Profile picture or initials avatar
+                if user_picture and str(user_picture).startswith('http'):
+                    st.image(user_picture)
+                else:
+                    # Create initials avatar - use larger heading for better visibility
+                    name_words = user_name.split()[:2]
+                    initials = ''.join([word[0].upper() for word in name_words if word]) if name_words else "U"
+                    st.markdown(f"# {initials}")
                 
-                with col_center:
-                    
-                    # Profile picture or initials avatar - centered and larger
-                    if user_picture and str(user_picture).startswith('http'):
-                        st.image(user_picture)
-                    else:
-                        # Create initials avatar - use larger heading for better visibility
-                        name_words = user_name.split()[:2]
-                        initials = ''.join([word[0].upper() for word in name_words if word]) if name_words else "U"
-                        st.markdown(f"# {initials}")
-                    
-                    # Add spacing
-                    st.markdown("")
-                    
-                    # User name - centered and prominent
-                    st.markdown(f"**{user_name}**")
+                # User name
+                st.markdown(f"**{user_name}**")
 
         
         # Separator after user section
