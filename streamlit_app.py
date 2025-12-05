@@ -2566,25 +2566,15 @@ with tab_about:
         ))
         
         fig.update_layout(
-            title={
-                'text': 'Team Contribution Matrix',
-                'x': 0.5,
-                'xanchor': 'center',
-                'font': {'size': 20, 'family': 'Arial, sans-serif'}
-            },
-            xaxis=dict(
-                title="Team Members",
-                titlefont=dict(size=14),
-                tickfont=dict(size=12)
-            ),
-            yaxis=dict(
-                title="",
-                titlefont=dict(size=14),
-                tickfont=dict(size=11)
-            ),
+            title=dict(text='Team Contribution Matrix', x=0.5, xanchor='center', font=dict(size=20, family='Arial, sans-serif')),
+            xaxis_title="Team Members",
+            yaxis_title="",
             margin=dict(l=220, r=120, t=100, b=80),
             plot_bgcolor='white',
-            paper_bgcolor='white'
+            paper_bgcolor='white',
+            font=dict(size=12),
+            xaxis=dict(tickfont=dict(size=12)),
+            yaxis=dict(tickfont=dict(size=11))
         )
         
         st.plotly_chart(fig, use_container_width=True)
