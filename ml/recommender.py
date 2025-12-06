@@ -74,14 +74,14 @@ class KNNSportRecommender:
 
         Args:
             training_data: List of sport feature dicts from database.
-                          Must be loaded via src.db.client.get_ml_training_data()
+                          Must be loaded via utils.db.get_ml_training_data_cli()
                           or equivalent database access layer function.
 
         Raises:
             ValueError: If no training data is available.
         """
         if not training_data:
-            raise ValueError("No training data provided. Load data via src.db.client.get_ml_training_data()")
+            raise ValueError("No training data provided. Load data via utils.db.get_ml_training_data_cli()")
         
         self.sports_df = pd.DataFrame(training_data)
         print(f"Loaded {len(self.sports_df)} sports")
