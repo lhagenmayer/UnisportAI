@@ -39,7 +39,7 @@ All of the content below is **fully up to date** with the current project struct
 - **Rich filter sidebar**
   - **Activity Type**
     - Intensity (Low / Moderate / High)
-    - Focus (Strength, Endurance, Flexibility, Longevity, …)
+    - Focus (Balance, Flexibility, Coordination, Relaxation, Strength, Endurance, Longevity)
     - Setting (Solo, Duo, Team, Competitive, Fun)
   - **Course filters**
     - Location
@@ -227,6 +227,7 @@ The app expects a PostgreSQL database (via Supabase) with at least the following
 - `sportangebote` – sports offers (base table with focus/setting/intensity features)
 - `sportkurse` – course definitions grouped by course number
 - `kurs_termine` – individual course dates (time, location, cancellation flag)
+- `kurs_trainer` – join table linking courses to trainers (many-to-many)
 - `unisport_locations` – physical locations with coordinates and indoor/outdoor flag
 - `trainer` – trainers with base metadata
 - `etl_runs` – simple ETL bookkeeping table for scraper components
@@ -286,17 +287,21 @@ UnisportAI/
   - Reads filters from session state
   - Loads offers and events via `utils.db` helpers
   - Integrates ML recommender and analytics views
-  - Contains UI components: `render_unified_sidebar()`, `render_analytics_section()`
+  - Unified sidebar rendered at module level (before tabs)
+  - Four main tabs: Sports Overview, Course Dates, My Profile, About
 
 - **`utils/auth.py`**
   - `is_logged_in()` – checks Streamlit user session
   - `handle_logout()` – clears session state and logs out
+  - `clear_user_session()` – clears all user-related session state data
   - `check_token_expiry()` – optional expiry check
   - `sync_user_to_supabase()` – creates/updates user row in Supabase
+  - `get_user_info_dict()` – collects user info into a dictionary
   - Accessors like `get_user_sub()` and `get_user_email()`
 
 - **`utils/db.py`**
   - Creates a cached Supabase connection via `st-supabase-connection`
+  - `supaconn()` – cached connection singleton
   - Provides high‑level query functions:
     - `get_offers_complete()` – load all sports offers
     - `get_events(offer_href)` – load events (optionally filtered by offer)
@@ -305,27 +310,45 @@ UnisportAI/
     - `get_user_complete(user_sub)` – load user profile
     - `get_events_grouped_by_offer()` – group events by offer for efficient lookup
     - `get_events_grouped_by_sport()` – group events by sport for efficient lookup
+    - `group_events_by(field)` – generic grouping function
     - `get_events_by_weekday()` – analytics: count events by weekday
     - `get_events_by_hour()` – analytics: count events by hour of day
+    - `count_by_field()` – generic counting function for analytics
     - `get_ml_training_data_cli()` – load ML training data for CLI scripts
     - `create_or_update_user(user_data)` – create or update user in database
 
 - **`utils/filters.py`**
   - Event and offer filtering logic
-  - `check_event_matches_filters()` – single event filter validation
-  - `filter_events()` – filter list of events
+  - `filter_events()` – filter list of events by multiple criteria
   - `filter_offers()` – filter sports offers with ML scoring
+  - `get_filter_values_from_session()` – extract all filter values from session state
+  - `has_event_filters()` – check if any event filters are set
+  - `has_offer_filters()` – check if any ML-relevant filters are set
+  - `initialize_session_state()` – initialize filter session state with defaults
+  - `get_filter_session_keys()` – return list of all filter session keys
+  - `apply_soft_filters_to_score()` – reduce match score based on soft filters
+  - `get_merged_recommendations()` – merge KNN ML and filtered results
+  - `apply_ml_recommendations_to_offers()` – apply ML recommendations with fallback thresholds
 
 - **`utils/ml_utils.py`**
   - ML model loading and recommendation functions
+  - `ML_FEATURE_COLUMNS` – list of 13 feature column names for ML
   - `load_knn_model()` – load pre-trained KNN model with caching
   - `build_user_preferences_from_filters()` – convert filters to feature vector
   - `get_ml_recommendations()` – get ML-based sport recommendations
 
 - **`utils/formatting.py`**
   - HTML formatting utilities and date/time formatters
-  - `format_intensity_display()`, `format_focus_display()` – display formatters
-  - `parse_event_datetime()`, `format_weekday()`, `format_time_range()` – datetime utilities
+  - `format_intensity_display()` – format intensity with emoji indicator
+  - `format_focus_display()` – format focus list for display
+  - `format_setting_display()` – format setting list for display
+  - `format_trainers_display()` – format trainers list for display
+  - `create_offer_metadata_df()` – create DataFrame with offer metadata
+  - `parse_event_datetime()` – parse ISO datetime strings
+  - `format_weekday()` – format weekday from datetime
+  - `format_time_range()` – format time range string
+  - `get_match_score_style()` – get CSS style for match score badge
+  - `render_user_avatar()` – render user avatar (image or initials)
   - `convert_events_to_table_data()` – convert events to DataFrame format
 
 - **`utils/analytics.py`**
