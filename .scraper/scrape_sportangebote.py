@@ -363,15 +363,15 @@ def main():
     # =========================================================================
     # STEP 2: Update locations table (unisport_locations)
     # =========================================================================
-    # Wichtig für:
-    # - Analytics (Top 10 Standorte, Indoor/Outdoor)
-    # - Validierung von kurs_termine.location_name
-    # Wenn dieser Schritt fehlschlägt, soll der gesamte Scraper-Lauf
-    # im CI fehlschlagen, damit das Problem nicht unbemerkt bleibt.
+    # Important for:
+    # - Analytics (Top 10 locations, Indoor/Outdoor)
+    # - Validation of kurs_termine.location_name
+    # If this step fails, the entire scraper run should fail in CI,
+    # so that the problem does not go unnoticed.
     try:
         locations = extract_locations()
         if locations:
-            # Nur relevante Felder für die Tabelle unisport_locations übernehmen
+            # Only take relevant fields for the unisport_locations table
             rows = []
             for loc in locations:
                 rows.append(
@@ -381,7 +381,7 @@ def main():
                         "lng": loc.get("lng"),
                         "ort_href": loc.get("ort_href"),
                         "spid": loc.get("spid"),
-                        # indoor_outdoor bleibt optional und kann später ergänzt werden
+                        # indoor_outdoor remains optional and can be added later
                     }
                 )
             supabase.table("unisport_locations").upsert(
@@ -389,12 +389,12 @@ def main():
             ).execute()
             print("Supabase:", len(rows), "locations saved")
         else:
-            # Leere Ergebnisliste ist für die produktive Pipeline ein harter Fehler,
-            # weil dann alle Location-bezogenen Analytics ins Leere laufen würden.
+            # Empty result list is a hard error for the production pipeline,
+            # because then all location-related analytics would run into the void.
             print("Error: No locations extracted from website – aborting scraper run.")
             sys.exit(1)
     except Exception as e:
-        # Im Fehlerfall mit Exitcode != 0 abbrechen, damit der GitHub-Action-Lauf rot wird.
+        # In case of error, abort with exit code != 0, so the GitHub Action run fails.
         print("Error: Failed to update locations:", e)
         sys.exit(1)
     
