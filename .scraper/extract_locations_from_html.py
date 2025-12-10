@@ -254,8 +254,8 @@ def fuzzy_match_name(target, candidates, threshold=0.85):
 
 def extract_locations(use_cached: bool = False, cached_file: str | None = None):
     """
-    Extrahiert Locations (Name, Koordinaten, Links, SPID) von der
-    Unisport-Webseite und gibt eine Liste von Dictionaries zurück:
+    Extracts locations (name, coordinates, links, SPID) from the
+    Unisport website and returns a list of dictionaries:
         {
             \"name\": str,
             \"lat\": float | None,
@@ -264,17 +264,16 @@ def extract_locations(use_cached: bool = False, cached_file: str | None = None):
             \"spid\": str | None,
         }
 
-    Diese Funktion ist so gebaut, dass sie im produktiven Scraper
-    wiederverwendet werden kann. `use_cached` und `cached_file` sind
-    nur für lokale Debug-Zwecke gedacht.
+    This function is designed to be reusable in the production scraper.
+    `use_cached` and `cached_file` are intended for local debugging purposes only.
     """
-    # Optional: HTML aus Cache lesen (nur für lokale Tests)
+    # Optional: Read HTML from cache (for local tests only)
     if use_cached and cached_file and os.path.exists(cached_file):
         print("Using cached HTML file")
         with open(cached_file, 'r', encoding='utf-8') as f:
             html_text = f.read()
     else:
-        # Produktiver Standard: direkt von der Website laden
+        # Production standard: load directly from the website
         print("Fetching locations HTML from website...")
         html_text = fetch_html(SOURCE_URL)
 
@@ -357,10 +356,9 @@ def extract_locations(use_cached: bool = False, cached_file: str | None = None):
 
 def main():
     """
-    Lokaler Debug-Einstieg: ruft extract_locations() auf und gibt
-    einige Statistiken auf der Konsole aus. Für die produktive
-    Pipeline sollte nur extract_locations() importiert und verwendet
-    werden.
+    Local debug entry point: calls extract_locations() and prints
+    some statistics to the console. For the production pipeline,
+    only extract_locations() should be imported and used.
     """
     merged = extract_locations(use_cached=False)
 

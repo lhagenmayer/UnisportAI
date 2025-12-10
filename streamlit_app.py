@@ -353,8 +353,8 @@ with st.sidebar:
                         value=st.session_state.get('end_time', None),
                         key="unified_end_time"
                     )
-                    # WARUM: time_input gibt time(0,0) zurück wenn kein Wert gesetzt ist
-                    # WIE: Prüfe auf time(0,0) und setze None für "kein Filter"
+                    # WHY: time_input returns time(0,0) when no value is set
+                    # HOW: Check for time(0,0) and set None for "no filter"
                     if end_time != time(0, 0):
                         st.session_state['end_time'] = end_time
                     else:
