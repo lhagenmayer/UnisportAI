@@ -1,4 +1,8 @@
-## 🎯 UnisportAI
+# UnisportAI
+
+**Course finder and recommendations for Fundamentals and Methods of Computer Science**
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://unisport.streamlit.app)
 
 An intelligent Streamlit-based web application for discovering and managing university sports offers at the University of St. Gallen (HSG).
 
@@ -7,13 +11,138 @@ The app focuses on:
 - **Discovery**: Find sports activities that match your intensity, focus and setting preferences.
 - **Filtering**: Powerful sidebar filters for time, location, weekday and more.
 - **Personalization**: Save filter defaults and favourites per user.
+- **AI Recommendations**: Machine learning-powered sport suggestions using KNN algorithm.
 
-All of the content below is **fully up to date** with the current project structure:
+## Quick Start
 
-- `streamlit_app.py` - Main application entry point
-- `utils/` - Utility modules (auth, db, filters, ml_utils, formatting, analytics)
-- `ml/` - ML training utilities and model artifacts
-- `.scraper/` - Web scraping scripts for data collection
+### Prerequisites
+- Python 3.9+ (3.11 recommended)
+- Streamlit account (for deployment)
+- Supabase account (for database)
+- Google OAuth credentials (optional, for user authentication)
+
+### Local Development Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/RadicatorCH/UnisportAI.git
+   cd UnisportAI
+   ```
+
+2. **Create and activate a virtual environment:**
+   ```bash
+   python -m venv venv
+   # macOS/Linux:
+   source venv/bin/activate
+   # Windows:
+   venv\Scripts\activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up Supabase database:**
+   - Create a new Supabase project at https://supabase.com
+   - Run the schema from `schema.sql` in your Supabase SQL editor
+   - Note your project URL and anon key from Settings > API
+
+5. **Configure secrets in `.streamlit/secrets.toml`:**
+   ```toml
+   [connections.supabase]
+   SUPABASE_URL = "your_supabase_project_url"
+   SUPABASE_KEY = "your_supabase_anon_key"
+
+   # Google OAuth (for user authentication)
+   GOOGLE_CLIENT_ID = "your_google_oauth_client_id"
+   GOOGLE_CLIENT_SECRET = "your_google_oauth_client_secret"
+
+   # Optional: Email notifications
+   ADMIN_EMAIL = "your_admin_email@example.com"
+   LOOPS_API_KEY = "your_loops_api_key"
+   ```
+
+6. **Run the application:**
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+
+### Database Setup
+
+The application uses Supabase as its database. To set up:
+
+1. Create a Supabase project at https://supabase.com
+2. Go to the SQL Editor in your Supabase dashboard
+3. Run the contents of `schema.sql` to create all necessary tables
+4. Copy your project URL and anon key from Settings > API
+
+### ML Model Training (Optional)
+
+If you want to retrain the recommendation model:
+
+1. Ensure you have training data in your Supabase database
+2. Run the training script:
+   ```bash
+   python ml/train.py
+   ```
+3. The trained model will be saved to `ml/models/knn_recommender.joblib`
+
+### Deployment to Streamlit Cloud
+
+1. Fork this repository to your GitHub account
+2. Go to [share.streamlit.io](https://share.streamlit.io)
+3. Connect your GitHub account and select the forked repository
+4. Set the main file path to `streamlit_app.py`
+5. Add the following secrets in the Streamlit Cloud dashboard:
+   - `SUPABASE_URL`
+   - `SUPABASE_KEY`
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `ADMIN_EMAIL` (optional)
+   - `LOOPS_API_KEY` (optional)
+
+6. Deploy the app
+
+### Environment Variables
+
+The application requires several environment variables for full functionality:
+
+**Required:**
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_KEY`: Your Supabase anon key
+
+**Optional:**
+- `GOOGLE_CLIENT_ID`: Google OAuth client ID for authentication
+- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret
+- `ADMIN_EMAIL`: Email address for notifications
+- `LOOPS_API_KEY`: API key for email notifications
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **"Model not found" error:**
+   - Run `python ml/train.py` to train the ML model
+   - Ensure `ml/models/knn_recommender.joblib` exists
+
+2. **Database connection errors:**
+   - Check your Supabase credentials in `.streamlit/secrets.toml`
+   - Verify your Supabase project is active
+   - Ensure the database schema is created using `schema.sql`
+
+3. **Google OAuth not working:**
+   - Verify redirect URIs in Google Cloud Console include your app's URL
+   - For local development: `http://localhost:8501/oauth2callback`
+   - For production: `https://your-app-name.streamlit.app/oauth2callback`
+
+4. **Scraper scripts failing:**
+   - Check GitHub Actions secrets are set correctly
+   - Verify Supabase write permissions for the service key
+
+**Getting Help:**
+- Check the GitHub Actions logs for detailed error messages
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
 
 ---
 
@@ -83,7 +212,7 @@ All of the content below is **fully up to date** with the current project struct
 
 **Languages & runtime**
 
-- Python 3.9+
+- Python 3.9+ (3.11 recommended)
 - Streamlit (latest)
 
 **Backend & database**
@@ -93,19 +222,25 @@ All of the content below is **fully up to date** with the current project struct
 
 **Machine Learning & data**
 
-- scikit‑learn, KNN, StandardScaler
-- pandas, numpy, data wrangling & numeric operations
-- joblib, model persistence
+- scikit-learn: KNN, StandardScaler for ML recommendations
+- pandas, numpy: data wrangling & numeric operations
+- joblib: model persistence
 
-**Visualisation**
+**Visualization**
 
-- Plotly (graph_objects + express)
+- Plotly (graph_objects + express): interactive charts and analytics
 
 **Web scraping** (for `.scraper/` scripts)
 
-- requests, HTTP library for fetching web pages
-- beautifulsoup4, lxml, HTML parsing
-- urllib3, HTTP client utilities
+- requests: HTTP library for fetching web pages
+- beautifulsoup4, lxml: HTML parsing
+- urllib3: HTTP client utilities
+- python-dateutil: date/time parsing
+
+**Authentication**
+
+- Streamlit Auth: built-in OAuth support
+- Google OAuth 2.0: secure user authentication
 
 See `requirements.txt` for the exact dependency list.
 
@@ -253,29 +388,39 @@ Current (simplified) layout:
 
 ```text
 UnisportAI/
-├── streamlit_app.py    # Main Streamlit application
-├── utils/              # Utility modules (refactored from root)
-│   ├── __init__.py     # Package documentation (explicit imports used)
-│   ├── auth.py         # Authentication helpers (Streamlit + Google OAuth)
-│   ├── db.py           # Supabase data access layer
-│   ├── filters.py      # Event and offer filtering logic
-│   ├── ml_utils.py     # ML model loading and recommendations
-│   ├── formatting.py   # HTML formatting utilities
-│   └── analytics.py    # Analytics visualizations and charts
-├── ml/                 # ML recommender utilities and model
-│   ├── recommender.py  # KNN recommender class (training / testing)
-│   ├── train.py        # CLI script to train and save the model
-│   ├── test.py         # CLI script to test recommendations
+├── streamlit_app.py           # Main Streamlit application
+├── utils/                     # Utility modules
+│   ├── __init__.py           # Package initialization
+│   ├── auth.py               # Authentication helpers (Streamlit + Google OAuth)
+│   ├── db.py                 # Supabase data access layer
+│   ├── filters.py            # Event and offer filtering logic
+│   ├── ml_utils.py           # ML model loading and recommendations
+│   ├── formatting.py         # HTML formatting utilities
+│   └── analytics.py          # Analytics visualizations and charts
+├── ml/                       # ML recommender utilities and model
+│   ├── recommender.py        # KNN recommender class (training / testing)
+│   ├── train.py              # CLI script to train and save the model
+│   ├── test.py               # CLI script to test recommendations
 │   └── models/
 │       └── knn_recommender.joblib  # Saved model bundle used by the app
-├── .scraper/           # Web scraping scripts
-│   ├── scrape_sportangebote.py    # Scrape sports offers and courses
-│   ├── extract_locations_from_html.py  # Extract location data
-│   └── update_cancellations.py    # Update cancellation status
-├── requirements.txt    # Python dependencies
-├── schema.sql          # Database schema definition
-├── .streamlit/         # (optional) local Streamlit config & secrets
-└── .github/            # CI workflows (GitHub Actions)
+├── .scraper/                 # Web scraping scripts
+│   ├── scrape_sportangebote.py        # Scrape sports offers and courses
+│   ├── extract_locations_from_html.py # Extract location data
+│   └── update_cancellations.py        # Update cancellation status
+├── .github/                  # GitHub Actions workflows
+│   └── workflows/
+│       └── scraper.yml       # Automated data scraping workflow
+├── .streamlit/               # Streamlit configuration and secrets
+│   └── secrets.toml          # Local secrets (not committed)
+├── assets/                   # Static assets
+│   └── images/               # Team member photos
+├── requirements.txt          # Python dependencies
+├── schema.sql                # Database schema definition
+├── CODE_OF_CONDUCT.md        # Community guidelines
+├── CONTRIBUTING.md           # Contribution guidelines
+├── LICENSE                   # MIT License
+├── README.md                 # This file
+└── SECURITY.md               # Security policy
 ```
 
 ### Module overview
@@ -297,7 +442,8 @@ UnisportAI/
   - `check_token_expiry()` – optional expiry check
   - `sync_user_to_supabase()` – creates/updates user row in Supabase
   - `get_user_info_dict()` – collects user info into a dictionary
-  - Accessors like `get_user_sub()` and `get_user_email()`
+  - `get_user_sub()` – get user subject ID
+  - `get_user_email()` – get user email address
 
 - **`utils/db.py`**
   - Creates a cached Supabase connection via `st-supabase-connection`
@@ -313,13 +459,11 @@ UnisportAI/
     - `group_events_by(field)` – generic grouping function
     - `get_events_by_weekday()` – analytics: count events by weekday
     - `get_events_by_hour()` – analytics: count events by hour of day
-    - `count_by_field()` – generic counting function for analytics
     - `get_ml_training_data_cli()` – load ML training data for CLI scripts
     - `create_or_update_user(user_data)` – create or update user in database
 
 - **`utils/filters.py`**
   - Event and offer filtering logic
-  - `check_event_matches_filters()` – single event filter validation
   - `filter_events()` – filter list of events by multiple criteria
   - `filter_offers()` – filter sports offers with ML scoring
   - `get_filter_values_from_session()` – extract all filter values from session state
@@ -337,6 +481,7 @@ UnisportAI/
   - `load_knn_model()` – load pre-trained KNN model with caching
   - `build_user_preferences_from_filters()` – convert filters to feature vector
   - `get_ml_recommendations()` – get ML-based sport recommendations
+  - `ML_MODEL_PATH` – path to saved model file
 
 - **`utils/formatting.py`**
   - HTML formatting utilities and date/time formatters
@@ -364,10 +509,16 @@ UnisportAI/
 
 - **`.scraper/`**
   - Web scraping scripts for automated data collection
-  - `scrape_sportangebote.py`, main scraper for offers, courses, and dates
-  - `extract_locations_from_html.py`, location data extraction
-  - `update_cancellations.py`, cancellation status updates
+  - `scrape_sportangebote.py` – main scraper for offers, courses, and dates
+  - `extract_locations_from_html.py` – location data extraction
+  - `update_cancellations.py` – cancellation status updates
   - Designed to run via GitHub Actions on a schedule
+
+- **`.github/workflows/scraper.yml`**
+  - GitHub Actions workflow for automated data scraping
+  - Runs daily at 6:00 AM UTC (7:00 AM CET)
+  - Requires environment variables: SUPABASE_URL, SUPABASE_KEY, ADMIN_EMAIL, LOOPS_API_KEY
+  - Can be triggered manually via GitHub UI
 
 
 ## 🤖 AI‑Assisted Development Transparency
@@ -380,6 +531,6 @@ Parts of this project were built and refactored using AI‑assisted tools (Curso
 
 ---
 
-**Made with ❤️ for the University of St. Gallen (HSG)**
+**Made with ❤️ for the course "Fundamentals and Methods of Computer Science" at the University of St. Gallen (HSG)**
 
 
