@@ -108,9 +108,9 @@ Students struggle to find sports activities that match their preferences (time, 
 **Purpose**: Filter offers and events based on user criteria
 
 **Key Concepts**:
-- **Hard Filters**: Must match exactly (sport name, location)
-- **Soft Filters**: Reduce match score instead of excluding
-- **AND Logic**: All filters must match
+- **Hard Filters**: Must match exactly (sport name, location) - items excluded if no match
+- **Soft Filters**: Reduce match score instead of excluding (used in ML recommendations)
+- **AND Logic**: All hard filters must match (items excluded if any filter fails)
 
 **Key Functions**:
 - `filter_events()`: Apply all event filters
@@ -490,7 +490,7 @@ FROM sportangebote;
 - Scraping runs **once daily** (minimal server load)
 - Data is used for **educational purposes** (course project)
 - No commercial use or resale
-- Respects `robots.txt` (we check if scraping is allowed)
+- Scraping is limited to university sports pages (targeted URLs, not full crawling)
 
 #### Q14: How do you parse complex HTML structures?
 **Answer**:
