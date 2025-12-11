@@ -1,0 +1,118 @@
+name: Run Webscraper Scripts
+
+# This workflow runs our scraping scripts automatically
+# We learned that GitHub Actions can run scripts on a schedule or manually
+on:
+  # Schedule: run every day at 6:00 AM UTC (which is 7:00 AM in Switzerland during winter)
+  # The cron format is: minute hour day month weekday
+  # 0 6 * * * means: at minute 0 of hour 6, every day, every month, every weekday
+  schedule:
+    - cron: '0 6 * * *'
+  
+  # workflow_dispatch allows us to manually trigger this from the GitHub website
+  # This is useful when we want to test or run it outside the schedule
+  workflow_dispatch:
+
+jobs:
+  # We named this job "scrape": it's just a name we chose
+  scrape:
+    # This tells GitHub to run our code on an Ubuntu Linux machine
+    # We use ubuntu latest so we always get the newest version
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Get our code from GitHub
+      # We need this because the machine starts empty and doesn't have our code yet
+      # actions/checkout@v4 is a pre-made action that downloads our repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Debug step: we added this to help us understand what's happening
+      # When something goes wrong, these print statements show us the file structure
+      # This helped us a lot during development when things weren't working
+      - name: Debug workspace layout
+        run: |
+          # Print current directory so we know where we are
+          echo "PWD=$(pwd)"
+          # Try to show the Git root directory (where our repository is)
+          echo "Git root:" && git rev-parse --show-toplevel || true
+          # List all files in the current directory
+          echo "Tree (top-level):" && ls -la || true
+          # Check if requirements.txt exists (we need it for installing packages)
+          echo "Find requirements.txt:" && ls -la requirements.txt || echo "requirements.txt not found in root" || true
+          # Check if the .scraper folder exists (where our scripts are)
+          echo "List .scraper:" && ls -la .scraper || echo ".scraper not found" || true
+
+      # Step 3: Install Python
+      # We need Python to run our scripts
+      # actions/setup-python@v5 is another pre-made action that installs Python for us
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # We use Python 3.11 because that's what we tested our code with
+          python-version: '3.11'
+          # Cache pip packages: this makes it faster because it doesn't re-download packages every time
+          # We learned that caching is important for speed
+          cache: 'pip'
+          # This tells the cache which file to look at for dependencies
+          cache-dependency-path: '**/requirements.txt'
+
+      # Step 4: Install all the Python packages we need
+      # Our scripts use libraries like requests, beautifulsoup4, etc.
+      # We need to install them before we can run our scripts
+      - name: Install dependencies
+        run: |
+          # First check if requirements.txt exists
+          # If it does, install everything from there (this is the normal way)
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            # If requirements.txt is missing, install the packages we know we need
+            # This is a fallback in case something goes wrong
+            echo "requirements.txt missing, installing minimal dependencies"
+            pip install requests beautifulsoup4 lxml python-dateutil supabase streamlit icalendar python-dotenv urllib3
+          fi
+
+      # Step 5: Run our first script
+      # This script extracts location data from the Unisport website
+      # We need to pass the Supabase credentials as environment variables
+      # Environment variables are like secret settings that the script can read
+      - name: Run extract_locations_from_html.py
+        env:
+          # These come from GitHub Secrets: we set them up in the repository settings
+          # This way we don't put passwords directly in the code (which would be unsafe)
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          # Run the Python script
+          python .scraper/extract_locations_from_html.py
+
+      # Step 6: Run our second script
+      # This is the main script that scrapes all the sport offers and courses
+      # It needs more environment variables because it also sends emails
+      - name: Run scrape_sportangebote.py
+        env:
+          # Supabase credentials again (needed for database access)
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          # Admin email for sending notifications if something goes wrong
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          # Loops API key for sending emails to users
+          LOOPS_API_KEY: ${{ secrets.LOOPS_API_KEY }}
+        run: |
+          python .scraper/scrape_sportangebote.py
+
+      # Step 7: Run our third script
+      # This script checks for cancelled courses and updates the database
+      # It runs last because it depends on the data from the previous scripts
+      - name: Run update_cancellations.py
+        env:
+          # Only needs Supabase credentials
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python .scraper/update_cancellations.py
+
+# Academic Integrity Notice:
+# This workflow file was developed by AI-based tools (Cursor and Github Copilot).
+# All code was reviewed, validated, and modified by the author.
