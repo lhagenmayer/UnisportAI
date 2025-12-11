@@ -226,7 +226,7 @@ def get_ml_training_data_cli():
     from supabase import create_client
     
     script_dir = Path(__file__).parent.absolute()
-    # Projektwurzel (eine Ebene über utils/)
+    # Project root (one level above utils/)
     parent_dir = script_dir.parent
     secrets_path = parent_dir / ".streamlit" / "secrets.toml"
 

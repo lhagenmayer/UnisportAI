@@ -56,14 +56,14 @@ def render_analytics_section():
         weekday_data = get_events_by_weekday()
         hour_data = get_events_by_hour()
     except Exception as e:
-        st.warning(f"⚠️ Fehler beim Laden der Analytics-Daten: {e}")
+        st.warning(f"⚠️ Error loading analytics data: {e}")
         return
     
     # Create 2 columns for the charts
     col1, col2 = st.columns(2)
     
     with col1:
-        # 1. Kursverfügbarkeit nach Wochentag
+        # 1. Course availability by weekday
         if weekday_data:
             weekdays = list(weekday_data.keys())
             counts = list(weekday_data.values())
@@ -90,12 +90,12 @@ def render_analytics_section():
             st.plotly_chart(fig, width="stretch")
     
     with col2:
-        # 2. Kursverfügbarkeit nach Tageszeit
+        # 2. Course availability by time of day
         if hour_data:
-            # Filter: Nur Stunden zwischen 6 und 22 Uhr
+            # Filter: Only hours between 6 AM and 10 PM
             filtered_hours = {h: hour_data.get(h, 0) for h in range(6, 23)}
             
-            # Formatierung: Stunden als "06:00", "07:00", etc.
+            # Formatting: Hours as "06:00", "07:00", etc.
             hours_formatted = [f"{h:02d}:00" for h in range(6, 23)]
             counts = [filtered_hours[h] for h in range(6, 23)]
             
@@ -314,7 +314,7 @@ def render_analytics_section():
                 with col_graph:
                     # Only show chart if data is available
                     if not chart_data_top10:
-                        st.info("Die Top 3 Empfehlungen werden links angezeigt. Es gibt keine weiteren Empfehlungen für das Diagramm.")
+                        st.info("The top 3 recommendations are displayed on the left. There are no additional recommendations for the chart.")
                     else:
                         # Prepare data for chart (top 10)
                         sport_names = []
@@ -580,9 +580,9 @@ def render_analytics_section():
                 # First check if model was loaded successfully
                 model_data = load_knn_model()
                 if model_data is None:
-                    st.warning("⚠️ **KI-Empfehlungen**: Das ML-Modell konnte nicht geladen werden. Bitte stellen Sie sicher, dass das Modell trainiert wurde (führen Sie `ml/train.py` aus).")
+                    st.warning("⚠️ **AI Recommendations**: The ML model could not be loaded. Please make sure the model has been trained (run `ml/train.py`).")
                 else:
-                    st.info(f"🤖 **KI-Empfehlungen**: Keine Empfehlungen gefunden mit einem Match-Score ≥ {min_match}%. Versuchen Sie, den Mindest-Match-Score zu senken oder andere Filter auszuwählen.")
+                    st.info(f"🤖 **AI Recommendations**: No recommendations found with a match score ≥ {min_match}%. Try lowering the minimum match score or selecting different filters.")
 
 
 def render_team_contribution_matrix(team_members, assets_path):
