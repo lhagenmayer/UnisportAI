@@ -1,43 +1,9 @@
 """Filtering utilities for offers and events.
 
-This module provides functions to filter sports activities and events based on user criteria.
+Functions to filter sports activities and events based on user criteria.
 
-WHAT IS FILTERING?
-------------------
-Filtering means showing only items that match certain criteria. For example:
-- "Show me only yoga classes" (sport filter)
-- "Show me only Monday classes" (weekday filter)
-- "Show me only morning classes" (time filter)
-- "Show me only classes at Gym A" (location filter)
-
-HOW FILTERING WORKS:
--------------------
-1. User selects filter criteria (e.g., "Monday", "Morning", "Yoga")
-2. Each event/offer is checked against these criteria
-3. Only items that match ALL criteria are shown
-4. Items that don't match are hidden
-
-KEY CONCEPTS:
-------------
-- Hard Filters: Must match exactly (e.g., sport name, location)
-- Date/Time Filters: Check if event is within a date or time range
-- Boolean Filters: True/False checks (e.g., hide cancelled events)
-- Multiple Filters: All filters must match (AND logic, not OR)
-
-EXAMPLE:
---------
-```python
-# Filter events:
-filtered = filter_events(
-    events,
-    sport_filter=['Yoga', 'Swimming'],
-    weekday_filter=['Monday', 'Wednesday'],
-    time_start=time(9, 0),  # 9 AM
-    time_end=time(17, 0),    # 5 PM
-    hide_cancelled=True
-)
-# Result: Only yoga/swimming events on Mon/Wed between 9 AM and 5 PM
-```
+Filtering shows only items matching criteria (e.g., sport, weekday, time, location).
+All filters use AND logic - items must match every selected filter.
 """
 
 from datetime import datetime, time, date
@@ -149,11 +115,9 @@ def filter_offers(offers, show_upcoming_only=True, intensity=None, focus=None, s
 
 def filter_events(events, sport_filter=None, weekday_filter=None, date_start=None, date_end=None,
                   time_start=None, time_end=None, location_filter=None, hide_cancelled=True, filters=None):
-    """Filter events. Accepts either filters dict or individual parameters.
+    """Filter events using individual parameters or a filters dict.
     
-    Provides flexible API - can pass individual parameters or a filters dictionary.
-    All filters must match (AND logic). Extracts values from filters dict if provided,
-    otherwise uses individual parameters.
+    All filters use AND logic. Pass either individual parameters or a filters dict.
     
     Args:
         events (list): List of event dictionaries to filter.
@@ -165,11 +129,10 @@ def filter_events(events, sport_filter=None, weekday_filter=None, date_start=Non
         time_end (time, optional): End time for time range filter.
         location_filter (list, optional): List of location names to match.
         hide_cancelled (bool, optional): If True, exclude cancelled events. Defaults to True.
-        filters (dict, optional): Dictionary containing all filter values. If provided,
-            individual parameters are ignored.
+        filters (dict, optional): Dictionary with all filter values. Overrides individual parameters.
     
     Returns:
-        list: List of filtered event dictionaries.
+        list: Filtered event dictionaries.
     """
     # Extract values from filters dict if provided, otherwise use individual parameters
     if filters:

@@ -3,20 +3,10 @@
 MACHINE LEARNING UTILITIES
 ================================================================================
 
-Purpose: ML model loading and recommendation functions using K-Nearest Neighbors (KNN) algorithm.
+Purpose: ML model loading and recommendation functions using K-Nearest Neighbors.
 
-HOW IT WORKS:
-1. Each sport has 13 features (balance, strength, intensity, etc.)
-2. User selects preferences (e.g., "I like high-intensity strength training")
-3. Preferences are converted to a 13-dimensional feature vector
-4. KNN finds sports with similar feature vectors
-5. The most similar sports are returned as recommendations
-
-KEY CONCEPTS:
-- Feature Vector: A list of numbers representing a sport's characteristics
-- Distance: How similar two feature vectors are (lower = more similar)
-- Match Score: Converted distance to percentage (100% = perfect match)
-- Model: Pre-trained ML model saved to disk (knn_recommender.joblib)
+Each sport has 13 features (balance, strength, intensity, etc.). User preferences
+are converted to a feature vector. KNN finds sports with similar vectors.
 ================================================================================
 """
 
@@ -58,47 +48,15 @@ ML_MODEL_PATH = Path(__file__).resolve().parent.parent / "ml" / "models" / "knn_
 
 @st.cache_resource
 def load_knn_model():
-    """Load the pre-trained KNN machine learning model from disk.
-    
-    Loads a saved ML model that was previously trained. The model contains:
-    - knn_model: The KNN algorithm trained on sport features
-    - scaler: A StandardScaler that normalizes feature values
-    - sports_df: A DataFrame with all sports and their features
+    """Load pre-trained KNN model from disk.
     
     Returns:
-        dict or None: Dictionary with keys:
-            - 'knn_model': Trained KNN model
-            - 'scaler': StandardScaler for feature normalization
-            - 'sports_df': DataFrame with sports and features
-        Returns None if model file not found or error occurred.
+        dict or None: Dict with 'knn_model', 'scaler', and 'sports_df'.
+        Returns None if model file not found.
         
     Note:
-        Loading ML models from disk is slow (can take seconds). By caching:
-        - First call: Loads from disk (slow, ~2-3 seconds)
-        - Subsequent calls: Returns cached model (fast, ~1ms)
-        - Model stays in memory for the entire Streamlit session
-        
-        Uses @st.cache_resource for objects that are expensive to create/load,
-        can't be serialized, and should be reused across page reruns.
-        ML models fit this description perfectly.
-        
-        The model must be trained first using ml/train.py before this
-        function can load it. The model file is saved as a .joblib file.
-        
-        Process:
-        1. Check if model file exists at ML_MODEL_PATH
-        2. If not found: Show warning and return None
-        3. If found: Load using joblib.load()
-        4. Return dictionary with model components
-        5. Streamlit caches the result
-        
-    Example:
-        >>> model_data = load_knn_model()
-        >>> if model_data:
-        ...     knn = model_data['knn_model']
-        ...     scaler = model_data['scaler']
-        ...     sports = model_data['sports_df']
-        ...     # Now you can use the model!
+        Cached with @st.cache_resource for fast reuse. First load is slow (~2-3s),
+        subsequent calls are instant. Train model first with ml/train.py.
     """
     # The model is stored alongside the scaler and source dataframe to
     # reproduce recommendation explanations (important for "why this sport?"
@@ -127,9 +85,8 @@ def load_knn_model():
 def build_user_preferences_from_filters(selected_focus, selected_intensity, selected_setting):
     """Convert user filter selections into a 13-dimensional feature vector.
     
-    Takes user selections from the sidebar (e.g., "I want strength training,
-    high intensity, solo") and converts them into a numerical vector that
-    the ML model can understand. ML models work with numbers, not words.
+    Converts user selections (e.g., "strength training, high intensity, solo") 
+    into a numerical vector for the ML model.
     
     Args:
         selected_focus (list): List of focus areas (e.g., ['strength', 'endurance']).
@@ -137,40 +94,7 @@ def build_user_preferences_from_filters(selected_focus, selected_intensity, sele
         selected_setting (list): List of settings (e.g., ['solo', 'team']).
     
     Returns:
-        dict: Dictionary with 13 feature values. Most are 0.0 or 1.0 (binary),
-            except intensity which is 0.0 to 1.0 (continuous). Keys:
-            - Focus features (binary): balance, flexibility, coordination, relaxation,
-              strength, endurance, longevity
-            - Intensity (continuous): 0.0 to 1.0 (low=0.33, moderate=0.67, high=1.0)
-            - Setting features (binary): setting_team, setting_fun, setting_duo,
-              setting_solo, setting_competitive
-        
-    Note:
-        This vector is then used by the KNN model to find similar sports.
-        The model compares this vector to feature vectors of all sports.
-        If multiple intensity values are selected, they are averaged.
-        Strings are manually mapped to floats instead of relying on pandas
-        so every component of the 13-D vector can be explained during demo sessions.
-        
-    Example:
-        >>> # User selects:
-        >>> focus = ['strength', 'endurance']
-        >>> intensity = ['high']
-        >>> setting = ['solo']
-        >>> 
-        >>> # Convert to feature vector:
-        >>> prefs = build_user_preferences_from_filters(focus, intensity, setting)
-        >>> # Result:
-        >>> # {
-        >>> #   'strength': 1.0,
-        >>> #   'endurance': 1.0,
-        >>> #   'flexibility': 0.0,
-        >>> #   ...
-        >>> #   'intensity': 1.0,
-        >>> #   'setting_solo': 1.0,
-        >>> #   'setting_team': 0.0,
-        >>> #   ...
-        >>> # }
+        dict: 13 feature values (mostly 0.0/1.0, intensity is 0.0-1.0).
     """
     # Strings are manually mapped to floats instead of relying on pandas
     # so every component of the 13-D vector can be explained during demo sessions.
@@ -203,63 +127,22 @@ def build_user_preferences_from_filters(selected_focus, selected_intensity, sele
 
 def get_ml_recommendations(selected_focus, selected_intensity, selected_setting, 
                           min_match_score=50, max_results=10, exclude_sports=None):
-    """Get sport recommendations using machine learning (KNN algorithm).
-    
-    Uses the KNN (K-Nearest Neighbors) ML algorithm to find sports that are
-    most similar to the user's preferences. Returns a ranked list of recommendations
-    with match scores (how similar each sport is to user preferences).
+    """Get sport recommendations using KNN.
     
     Args:
-        selected_focus (list): List of focus areas user selected.
-        selected_intensity (list): List of intensity levels user selected.
-        selected_setting (list): List of settings user selected.
-        min_match_score (int, optional): Minimum similarity score (0-100). Only sports
-            with this score or higher are returned. Defaults to 50.
-        max_results (int, optional): Maximum number of recommendations to return.
-            Defaults to 10.
-        exclude_sports (list, optional): List of sport names to exclude from
-            results (e.g., sports already shown in main results). Defaults to None.
+        selected_focus (list): Focus areas selected.
+        selected_intensity (list): Intensity levels selected.
+        selected_setting (list): Settings selected.
+        min_match_score (int, optional): Minimum score (0-100). Defaults to 50.
+        max_results (int, optional): Max recommendations. Defaults to 10.
+        exclude_sports (list, optional): Sports to exclude. Defaults to None.
     
     Returns:
-        list: List of recommendation dictionaries, each containing:
-            - 'sport' (str): Sport name
-            - 'match_score' (float): Similarity percentage (0-100)
-            - 'item' (dict): Complete sport data dictionary
-        Returns empty list if model not found or no matches above threshold.
+        list: Dicts with 'sport', 'match_score', and 'item'.
+        Empty list if model not found or no matches.
         
     Note:
-        This function requires a pre-trained model. If the model file doesn't
-        exist, it will return an empty list. Train the model first using ml/train.py.
-        
-        Process:
-        1. Load the pre-trained KNN model
-        2. Convert user filters to a 13-dimensional feature vector
-        3. Normalize the vector using StandardScaler (so all features are on same scale)
-        4. Use KNN to find sports with similar feature vectors
-        5. Convert distances to similarity scores (0-100%)
-        6. Filter by minimum match score
-        7. Return top N recommendations
-        
-        Match Score Explanation:
-        - 100% = Perfect match (sport features exactly match user preferences)
-        - 75% = Very similar (sport is quite similar to what user wants)
-        - 50% = Somewhat similar (sport has some matching features)
-        - 0% = No match (sport is completely different)
-        
-    Example:
-        >>> recommendations = get_ml_recommendations(
-        ...     selected_focus=['strength', 'endurance'],
-        ...     selected_intensity=['high'],
-        ...     selected_setting=['solo'],
-        ...     min_match_score=75,  # Only show 75%+ matches
-        ...     max_results=5        # Return top 5
-        ... )
-        >>> # Result:
-        >>> # [
-        >>> #   {'sport': 'Weight Training', 'match_score': 95.2, 'item': {...}},
-        >>> #   {'sport': 'CrossFit', 'match_score': 88.7, 'item': {...}},
-        >>> #   ...
-        >>> # ]
+        Requires pre-trained model. Train first with ml/train.py.
     """
     # Load model
     model_data = load_knn_model()

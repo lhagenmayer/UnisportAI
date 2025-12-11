@@ -3,18 +3,14 @@
 SUPABASE DATA ACCESS LAYER
 ================================================================================
 
-Purpose: Centralize all database access operations for UnisportAI.
-Architecture: Streamlit UI → utils.* service helpers → utils.db → Supabase REST API
+Purpose: Centralized database access for UnisportAI.
+Architecture: Streamlit UI → utils.* → utils.db → Supabase REST API
 
-WHY THIS MODULE EXISTS:
-- Centralizing database queries in one place improves maintainability and consistency
-- Other modules should not import Supabase directly, they should use functions from this module
-- Provides a single point of change when database schema or queries need updates
-
-KEY CONCEPTS:
-- Caching: Database queries are cached to reduce load and improve response time
-- Error Handling: All database operations use try/except for graceful degradation
-- Connection Management: Single cached connection per user session (not per query)
+Key points:
+- All database queries go through this module
+- Queries are cached to reduce load
+- Single connection per user session
+- Graceful error handling on all operations
 ================================================================================
 """
 
@@ -43,12 +39,10 @@ def supaconn():
     """Get cached Supabase database connection.
     
     Returns:
-        SupabaseConnection: Cached Supabase connection instance.
+        SupabaseConnection: Cached connection instance.
         
     Note:
-        Uses @st.cache_resource to ensure only one connection per user session.
-        Streamlit reruns scripts on each interaction, so caching prevents
-        creating multiple connections which would degrade performance.
+        Cached to prevent creating multiple connections on each Streamlit rerun.
     """
     return st.connection("supabase", type=SupabaseConnection)
 
@@ -64,10 +58,7 @@ def _sort_dict_by_count_desc(counts_dict):
         counts_dict (dict): Dictionary with numeric values to sort.
     
     Returns:
-        dict: New dictionary sorted by values in descending order (highest first).
-        
-    Note:
-        Used for analytics functions that need to display counts sorted by frequency.
+        dict: Sorted dictionary (highest first).
     """
     sorted_items = sorted(counts_dict.items(), key=lambda x: x[1], reverse=True)
     return dict(sorted_items)
@@ -75,9 +66,7 @@ def _sort_dict_by_count_desc(counts_dict):
 def _handle_db_error(e, context="database operation"):
     """Centralized error handling for database operations.
     
-    Provides consistent error messages and helps identify configuration vs. runtime errors.
-    Database queries can fail for various reasons (network, auth, config), so we need
-    to handle them gracefully and provide helpful error messages to users.
+    Provides consistent error messages and identifies configuration vs. runtime errors.
     
     Args:
         e (Exception): The exception that occurred.

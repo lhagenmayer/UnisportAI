@@ -34,9 +34,8 @@ def render_analytics_section():
     - Course availability by time of day (Histogram)
     
     Note:
-        This function reads filter values from session state and displays
-        recommendations only if offer filters (focus/intensity/setting) are set.
-        Chart configurations use Plotly with custom styling for consistent appearance.
+        Reads filter values from session state. Shows recommendations only 
+        when offer filters (focus/intensity/setting) are selected.
     """
     # Get filter state from session_state for AI recommendations
     filters = get_filter_values_from_session()
@@ -586,10 +585,7 @@ def render_analytics_section():
 
 
 def render_team_contribution_matrix(team_members, assets_path):
-    """Render a team contribution matrix heatmap showing each team member's contribution to different tasks.
-    
-    Creates a Plotly heatmap visualization that displays the contribution level
-    of each team member across different project tasks.
+    """Render a team contribution matrix heatmap.
     
     Args:
         team_members (list): List of dictionaries, each containing:
@@ -600,13 +596,8 @@ def render_team_contribution_matrix(team_members, assets_path):
             Currently unused but kept for API compatibility.
         
     Note:
-        Contribution levels are:
-        - 3 = Main Contribution (Blue)
-        - 2 = Contribution (Green)
-        - 1 = Supporting Role (Orange)
-        
-        The heatmap displays tasks on the y-axis and team members on the x-axis.
-        Hover tooltips show the contribution level for each cell.
+        Contribution levels: 3 = Main (Blue), 2 = Contributing (Green), 1 = Supporting (Orange)
+        Tasks on y-axis, team members on x-axis. Hover shows contribution level.
     """
     # Define tasks (reversed order so first task appears at top)
     tasks = [

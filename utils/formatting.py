@@ -3,14 +3,11 @@
 HTML AND FORMATTING UTILITIES
 ================================================================================
 
-Purpose: Functions for generating HTML and formatted strings that can be displayed
-in Streamlit using st.markdown() with unsafe_allow_html=True. Also includes
-date/time formatting utilities for consistent display across the app.
+Purpose: Functions for generating HTML and formatted strings for Streamlit display.
+Includes date/time formatting utilities for consistent display across the app.
 
-WHY: Streamlit has built-in components (st.write, st.title, etc.), but sometimes
-you need custom styling. This module helps create custom HTML/CSS that can be
-rendered in Streamlit. Always use unsafe_allow_html=True carefully - only with
-trusted content.
+Note: Custom HTML/CSS can be rendered using st.markdown() with unsafe_allow_html=True.
+Only use with trusted content.
 ================================================================================
 """
 
@@ -136,30 +133,17 @@ def format_trainers_display(trainers_list):
 
 
 def create_offer_metadata_df(offer, match_score=None, include_trainers=None, upcoming_count=None):
-    """Create a pandas DataFrame with offer metadata for display.
-    
-    Formats all offer metadata (intensity, focus, setting, trainers)
-    and creates a single-row DataFrame suitable for display in Streamlit.
+    """Create pandas DataFrame with offer metadata for display.
     
     Args:
-        offer (dict): Dictionary containing offer data with keys:
-            - 'intensity': Intensity level string
-            - 'focus': List of focus areas
-            - 'setting': List of settings
-            - 'trainers': List of trainer dictionaries or strings
-        match_score (float, optional): Match score (0-100) to include in the DataFrame.
-        include_trainers (bool, optional): Explicitly control trainer inclusion.
-            If None, trainers are included when match_score is provided.
-        upcoming_count (int, optional): Count of upcoming events to include.
+        offer (dict): Offer data (intensity, focus, setting, trainers).
+        match_score (float, optional): Match score (0-100) to include.
+        include_trainers (bool, optional): Include trainers column. 
+            If None, includes when match_score is provided.
+        upcoming_count (int, optional): Count of upcoming events.
     
     Returns:
-        pd.DataFrame: DataFrame with single row containing formatted metadata columns:
-            - Match (if match_score provided)
-            - Intensity
-            - Focus
-            - Setting
-            - Upcoming (if upcoming_count provided)
-            - Trainers (if include_trainers is True or match_score is provided)
+        pd.DataFrame: Single row with formatted metadata columns.
     """
     # Format intensity
     intensity_value = offer.get('intensity') or ''
@@ -199,22 +183,16 @@ def create_offer_metadata_df(offer, match_score=None, include_trainers=None, upc
 
 
 def parse_event_datetime(datetime_string):
-    """Parse an ISO format datetime string from event data.
+    """Parse ISO format datetime string from event data.
     
-    Handles timezone conversion by replacing 'Z' with '+00:00' for proper
-    datetime parsing. This is needed because some databases return 'Z' format
-    which Python's fromisoformat() doesn't handle directly.
+    Converts 'Z' timezone to '+00:00' since Python's fromisoformat() 
+    doesn't handle 'Z' directly.
     
     Args:
-        datetime_string (str or datetime): ISO format datetime string (may include 'Z' timezone)
-            or already-parsed datetime object.
+        datetime_string (str or datetime): ISO datetime string or datetime object.
     
     Returns:
         datetime: Parsed datetime object.
-        
-    Example:
-        >>> parse_event_datetime("2025-01-15T10:30:00Z")
-        datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=datetime.timezone.utc)
     """
     if isinstance(datetime_string, str):
         # Replace 'Z' with '+00:00' for proper timezone handling

@@ -35,16 +35,10 @@ def is_logged_in():
 # PURPOSE: Functions for managing user session state
 
 def clear_user_session():
-    """Clear all user-related data from Streamlit's session state.
+    """Clear all user-related data from session state.
     
-    Clears filter states, app states, and cached data. Streamlit re-runs the script
-    on every interaction, so if session_state keys are not cleared, ghost filters from
-    previous users may appear.
-    
-    Note:
-        When a user logs out, all their data must be removed from the app's memory.
-        Without clearing session state, the next user might see the previous user's filters
-        and selections, which is a privacy and security issue.
+    Clears filter states, app states, and cached data. Without this,
+    the next user could see the previous user's filters and selections.
     """
     # Clear filter states
     from utils.filters import get_filter_session_keys
@@ -65,11 +59,9 @@ def clear_user_session():
             getattr(st, cache_attr).clear()
 
 def handle_logout():
-    """Perform a complete logout: clear data, log out, and refresh the UI.
+    """Complete logout: clear data, log out, and refresh the UI.
     
-    This does three things: clears session state, calls Streamlit's logout, and
-    refreshes the page. All three steps are necessary for a complete logout to prevent
-    data leakage.
+    All three steps (clear session, logout, refresh) are needed to prevent data leakage.
     """
     clear_user_session()
     st.logout()

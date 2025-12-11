@@ -45,12 +45,11 @@ FEATURE_COLUMNS = [
 # PURPOSE: Main class for KNN-based sport recommendations
 
 class KNNSportRecommender:
-    """Machine Learning Recommender using K-Nearest Neighbors.
+    """ML Recommender using K-Nearest Neighbors.
     
-    Finds sports most similar to user preferences based on feature vectors.
-    Uses cosine distance and StandardScaler to normalize features before computing similarities.
-    The code is intentionally lightweight, the primary goal is to return nearest
-    neighbors (feature-similar sports) rather than train a large classification model.
+    Finds sports similar to user preferences using feature vectors.
+    Uses cosine distance and StandardScaler to normalize features.
+    Lightweight design - returns nearest neighbors rather than complex classification.
     """
     
     def __init__(self, n_neighbors=10):
@@ -73,14 +72,10 @@ class KNNSportRecommender:
         self.is_fitted = False
     
     def load_and_train(self, training_data: List[Dict]):
-        """Load features and train the internal KNN model.
+        """Load features and train the KNN model.
         
-        This is the CORE TRAINING LOGIC method of the KNNSportRecommender class.
-        It handles data preprocessing, feature scaling, and KNN model fitting.
-        
-        This method is called by training scripts (e.g., ml/train.py) which
-        handle the orchestration (loading data from database, creating the recommender
-        instance, and saving the model). This method focuses solely on the training logic.
+        Handles data preprocessing, feature scaling, and KNN model fitting.
+        Called by training scripts (e.g., ml/train.py) which handle orchestration.
 
         Args:
             training_data (List[Dict]): List of sport feature dicts from database.
@@ -135,24 +130,15 @@ class KNNSportRecommender:
         """Get sport recommendations using trained KNN model.
         
         Args:
-            user_preferences (dict): Dictionary with feature values (keys from FEATURE_COLUMNS).
-                Each key should map to a numeric value (0.0 to 1.0 for most features).
+            user_preferences (dict): Feature values (keys from FEATURE_COLUMNS).
+                Values should be numeric (0.0 to 1.0 for most features).
             top_n (int, optional): Number of recommendations to return. Defaults to 5.
             
         Returns:
-            list: List of dictionaries, each containing:
-                - 'sport' (str): Sport name
-                - 'match_score' (float): Similarity score (0-100%), where 100% = perfect match
+            list: List of dicts with 'sport' (str) and 'match_score' (float, 0-100%).
                 
         Raises:
             ValueError: If called before the model is trained.
-            
-        Note:
-            Process:
-            1. Build user feature vector from preferences dict
-            2. Apply same scaling transformation used during training
-            3. Find K nearest neighbors in the feature space
-            4. Convert distances to similarity percentages (lower distance = higher similarity)
         """
         if not self.is_fitted:
             raise ValueError("Model not trained. Call load_and_train() first.")
