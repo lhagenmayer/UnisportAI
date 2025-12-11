@@ -106,6 +106,27 @@ UnisportAI/
 └── requirements.txt          # Python dependencies
 ```
 
+## Database Schema
+
+The application uses Supabase (PostgreSQL) with the following core tables:
+
+### Core Tables
+- **`users`** - User accounts and authentication data
+- **`sportangebote`** - Sports offers (name, description, intensity, focus, setting)
+- **`sportkurse`** - Individual courses within offers
+- **`kurs_termine`** - Course dates and times with location info
+- **`unisport_locations`** - Physical locations with coordinates
+- **`trainer`** - Instructor information
+- **`kurs_trainer`** - Many-to-many relationship between courses and trainers
+- **`etl_runs`** - Logging for data scraping operations
+
+### Views
+- **`vw_offers_complete`** - Enriched offers with event counts and trainer lists
+- **`vw_termine_full`** - Course dates with sport names and trainer info
+- **`ml_training_data`** - Feature vectors for machine learning (13 numeric columns)
+
+The complete schema is defined in `schema.sql` and should be run in a fresh Supabase project.
+
 ## Team
 
 This project was developed as part of the "Fundamentals and Methods of Computer Science" course at the University of St. Gallen (HSG).
