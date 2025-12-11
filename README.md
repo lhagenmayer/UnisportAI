@@ -4,6 +4,14 @@
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://unisport.streamlit.app)
 
+![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-latest-ff6b35.svg)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ecf8e.svg)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3+-f7931e.svg)
+![pandas](https://img.shields.io/badge/pandas-2.0+-150458.svg)
+![NumPy](https://img.shields.io/badge/NumPy-1.24+-013243.svg)
+![Plotly](https://img.shields.io/badge/Plotly-5.15+-3f4f75.svg)
+
 An intelligent Streamlit-based web application for discovering and managing university sports offers at the University of St. Gallen (HSG).
 
 The app focuses on:
