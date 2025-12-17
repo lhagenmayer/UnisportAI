@@ -21,14 +21,14 @@ This application helps students find sports activities that match their preferen
 ```mermaid
 flowchart TD
     %% Datenquellen
-    A[🌐 Unisport Website<br/>www.sportprogramm.unisg.ch] --> B[Web Scraping]
+    A[🌐 Unisport Website\nwww.sportprogramm.unisg.ch] --> B[Web Scraping]
 
     %% ETL Prozess
     B --> C[📊 Scraper Scripts]
-    C --> D[Extract Offers<br/>extract_offers()]
-    C --> E[Extract Courses<br/>extract_courses_for_offer()]
-    C --> F[Extract Locations<br/>extract_locations()]
-    C --> G[Extract Dates<br/>extract_course_dates()]
+    C --> D[Extract Offers\nextract_offers()]
+    C --> E[Extract Courses\nextract_courses_for_offer()]
+    C --> F[Extract Locations\nextract_locations()]
+    C --> G[Extract Dates\nextract_course_dates()]
 
     %% Datenbank Layer
     D --> H[(📚 Supabase PostgreSQL)]
@@ -36,17 +36,17 @@ flowchart TD
     F --> H
     G --> H
 
-    H --> I[sportangebote<br/>Angebote & Metadaten]
-    H --> J[sportkurse<br/>Konkrete Kurse]
-    H --> K[kurs_termine<br/>Termine & Zeiten]
-    H --> L[unisport_locations<br/>Standorte & Koordinaten]
-    H --> M[trainer<br/>Trainer-Informationen]
-    H --> N[kurs_trainer<br/>Kurs-Trainer Beziehungen]
+    H --> I[sportangebote\nAngebote & Metadaten]
+    H --> J[sportkurse\nKonkrete Kurse]
+    H --> K[kurs_termine\nTermine & Zeiten]
+    H --> L[unisport_locations\nStandorte & Koordinaten]
+    H --> M[trainer\nTrainer-Informationen]
+    H --> N[kurs_trainer\nKurs-Trainer Beziehungen]
 
     %% ML Pipeline
-    I --> O[🔧 ML Training Data View<br/>ml_training_data]
-    O --> P[🤖 KNN Training<br/>train.py]
-    P --> Q[💾 Trained Model<br/>knn_recommender.joblib]
+    I --> O[🔧 ML Training Data View\nml_training_data]
+    O --> P[🤖 KNN Training\ntrain.py]
+    P --> Q[💾 Trained Model\nknn_recommender.joblib]
 
     %% Views für App
     I --> R[👁️ Application Views]
@@ -56,27 +56,27 @@ flowchart TD
     M --> R
     N --> R
 
-    R --> S[vw_offers_complete<br/>Angebote mit Trainern]
-    R --> T[vw_termine_full<br/>Termine mit Details]
+    R --> S[vw_offers_complete\nAngebote mit Trainern]
+    R --> T[vw_termine_full\nTermine mit Details]
 
     %% Streamlit Application
-    S --> U[🎯 Streamlit App<br/>streamlit_app.py]
+    S --> U[🎯 Streamlit App\nstreamlit_app.py]
     T --> U
     Q --> U
 
-    U --> V[🏃‍♂️ Sports Overview<br/>Gefilterte Angebote]
-    U --> W[📅 Course Dates<br/>Termin-Details]
-    U --> X[👤 My Profile<br/>Benutzerprofil]
-    U --> Y[📊 Analytics<br/>Team-Matrix & Charts]
+    U --> V[🏃‍♂️ Sports Overview\nGefilterte Angebote]
+    U --> W[📅 Course Dates\nTermin-Details]
+    U --> X[👤 My Profile\nBenutzerprofil]
+    U --> Y[📊 Analytics\nTeam-Matrix & Charts]
 
     %% Benutzerinteraktion
-    V --> Z[🔍 Filtering<br/>Zeit, Ort, Sportart]
-    Z --> AA[🎯 ML Recommendations<br/>KNN-basierte Vorschläge]
+    V --> Z[🔍 Filtering\nZeit, Ort, Sportart]
+    Z --> AA[🎯 ML Recommendations\nKNN-basierte Vorschläge]
     AA --> V
 
     %% Feedback Loop
-    U --> BB[📝 ETL Logging<br/>etl_runs Tabelle]
-    BB --> CC[🔄 Scheduled Updates<br/>GitHub Actions]
+    U --> BB[📝 ETL Logging\netl_runs Tabelle]
+    BB --> CC[🔄 Scheduled Updates\nGitHub Actions]
     CC --> B
 
     %% Styling
@@ -180,20 +180,20 @@ flowchart TD
     B --> D[📅 Event-Filter]
     B --> E[🤖 ML-Filter]
 
-    C --> F[Intensität<br/>low/moderate/high]
-    C --> G[Focus<br/>strength/endurance/flexibility...]
-    C --> H[Setting<br/>team/solo/duo/competitive...]
-    C --> I[Show Upcoming Only<br/>Boolean]
+    C --> F[Intensität\nlow/moderate/high]
+    C --> G[Focus\nstrength/endurance/flexibility...]
+    C --> H[Setting\nteam/solo/duo/competitive...]
+    C --> I[Show Upcoming Only\nBoolean]
 
-    D --> J[Sports<br/>Yoga, Fitness, etc.]
-    D --> K[Weekdays<br/>Monday, Tuesday, ...]
-    D --> L[Time Range<br/>Start-End Time]
-    D --> M[Date Range<br/>Start-End Date]
-    D --> N[Locations<br/>Gym A, Hall B, ...]
-    D --> O[Hide Cancelled<br/>Boolean]
+    D --> J[Sports\nYoga, Fitness, etc.]
+    D --> K[Weekdays\nMonday, Tuesday, ...]
+    D --> L[Time Range\nStart-End Time]
+    D --> M[Date Range\nStart-End Date]
+    D --> N[Locations\nGym A, Hall B, ...]
+    D --> O[Hide Cancelled\nBoolean]
 
-    E --> P[Min Match Score<br/>0-100%]
-    E --> Q[ML Min Match<br/>Threshold für KNN]
+    E --> P[Min Match Score\n0-100%]
+    E --> Q[ML Min Match\nThreshold für KNN]
 
     %% Session State Speicherung
     F --> R[(Session State)]
@@ -211,21 +211,21 @@ flowchart TD
 
     %% Filter-Verarbeitung
     R --> S[get_filter_values_from_session()]
-    S --> T{Filter Typ<br/>prüfen}
+    S --> T{Filter Typ\nprüfen}
 
-    T -->|Offer-Filter aktiv| U[filter_offers()<br/>Hard Filter: intensity/focus/setting]
-    T -->|Event-Filter aktiv| V[filter_events()<br/>Event-Level Filter]
-    T -->|Beide aktiv| W[load_and_filter_offers()<br/>+ load_and_filter_events()]
+    T -->|Offer-Filter aktiv| U[filter_offers()\nHard Filter: intensity/focus/setting]
+    T -->|Event-Filter aktiv| V[filter_events()\nEvent-Level Filter]
+    T -->|Beide aktiv| W[load_and_filter_offers()\n+ load_and_filter_events()]
 
     %% Offer-Filtering Prozess
-    U --> X[100% Match Score<br/>für gefilterte Offers]
+    U --> X[100% Match Score\nfür gefilterte Offers]
     X --> Y[apply_ml_recommendations_to_offers()]
     Y --> Z[KNN Model laden]
-    Z --> AA[User Preferences<br/>aus Filtern extrahieren]
+    Z --> AA[User Preferences\naus Filtern extrahieren]
     AA --> BB[Feature Vector bauen]
-    BB --> CC[KNN Neighbors finden<br/>Ähnliche Sportarten]
-    CC --> DD[Match Scores berechnen<br/>0-100% basierend auf Distanz]
-    DD --> EE[Merge: Hard + ML Results<br/>Höherer Score gewinnt]
+    BB --> CC[KNN Neighbors finden\nÄhnliche Sportarten]
+    CC --> DD[Match Scores berechnen\n0-100% basierend auf Distanz]
+    DD --> EE[Merge: Hard + ML Results\nHöherer Score gewinnt]
 
     %% Event-Filtering Prozess
     V --> FF[_check_event_matches_filters()]
@@ -236,7 +236,7 @@ flowchart TD
     II -->|Ja| JJ[event.canceled == False]
     II -->|Nein| KK{Next: Weekday?}
 
-    KK -->|Ja| LL[start_time.strftime('%A')<br/>in selected_weekdays]
+    KK -->|Ja| LL[start_time.strftime('%A')\nin selected_weekdays]
     KK -->|Nein| MM{Next: Date Range?}
 
     MM -->|Ja| NN[event_date in [date_start, date_end]]
@@ -246,13 +246,13 @@ flowchart TD
     OO -->|Nein| QQ{Next: Location?}
 
     QQ -->|Ja| RR[location_name in selected_locations]
-    QQ -->|Nein| SS[✅ Event matches ALL filters<br/>AND Logic]
+    QQ -->|Nein| SS[✅ Event matches ALL filters\nAND Logic]
 
     %% Soft Filter Anwendung
     EE --> TT[apply_soft_filters_to_score()]
     SS --> TT
 
-    TT --> UU{Future Events Check<br/>show_upcoming_only?}
+    TT --> UU{Future Events Check\nshow_upcoming_only?}
     UU -->|Ja, keine Events| VV[Score -20%]
     UU -->|Nein| WW{Event Filter Match?}
 
@@ -273,9 +273,9 @@ flowchart TD
     DDD --> TT
 
     %% UI-Anzeige
-    AAA --> EEE[📊 Streamlit UI<br/>Sports Overview]
-    EEE --> FFF[Match Score Anzeige<br/>Farbcodierung]
-    EEE --> GGG[Sortierung<br/>Nach Score absteigend]
+    AAA --> EEE[📊 Streamlit UI\nSports Overview]
+    EEE --> FFF[Match Score Anzeige\nFarbcodierung]
+    EEE --> GGG[Sortierung\nNach Score absteigend]
 
     %% Styling
     classDef user fill:#fce4ec,stroke:#c2185b,stroke-width:2px
