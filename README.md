@@ -16,6 +16,89 @@ This application helps students find sports activities that match their preferen
 - **Data visualization**: Charts showing course availability patterns
 - **User interaction**: Interactive filters and personalized recommendations
 
+## Data Flow Architecture
+
+```mermaid
+flowchart TD
+    %% Datenquellen
+    A[🌐 Unisport Website<br/>www.sportprogramm.unisg.ch] --> B[Web Scraping]
+
+    %% ETL Prozess
+    B --> C[📊 Scraper Scripts]
+    C --> D[Extract Offers<br/>extract_offers()]
+    C --> E[Extract Courses<br/>extract_courses_for_offer()]
+    C --> F[Extract Locations<br/>extract_locations()]
+    C --> G[Extract Dates<br/>extract_course_dates()]
+
+    %% Datenbank Layer
+    D --> H[(📚 Supabase PostgreSQL)]
+    E --> H
+    F --> H
+    G --> H
+
+    H --> I[sportangebote<br/>Angebote & Metadaten]
+    H --> J[sportkurse<br/>Konkrete Kurse]
+    H --> K[kurs_termine<br/>Termine & Zeiten]
+    H --> L[unisport_locations<br/>Standorte & Koordinaten]
+    H --> M[trainer<br/>Trainer-Informationen]
+    H --> N[kurs_trainer<br/>Kurs-Trainer Beziehungen]
+
+    %% ML Pipeline
+    I --> O[🔧 ML Training Data View<br/>ml_training_data]
+    O --> P[🤖 KNN Training<br/>train.py]
+    P --> Q[💾 Trained Model<br/>knn_recommender.joblib]
+
+    %% Views für App
+    I --> R[👁️ Application Views]
+    J --> R
+    K --> R
+    L --> R
+    M --> R
+    N --> R
+
+    R --> S[vw_offers_complete<br/>Angebote mit Trainern]
+    R --> T[vw_termine_full<br/>Termine mit Details]
+
+    %% Streamlit Application
+    S --> U[🎯 Streamlit App<br/>streamlit_app.py]
+    T --> U
+    Q --> U
+
+    U --> V[🏃‍♂️ Sports Overview<br/>Gefilterte Angebote]
+    U --> W[📅 Course Dates<br/>Termin-Details]
+    U --> X[👤 My Profile<br/>Benutzerprofil]
+    U --> Y[📊 Analytics<br/>Team-Matrix & Charts]
+
+    %% Benutzerinteraktion
+    V --> Z[🔍 Filtering<br/>Zeit, Ort, Sportart]
+    Z --> AA[🎯 ML Recommendations<br/>KNN-basierte Vorschläge]
+    AA --> V
+
+    %% Feedback Loop
+    U --> BB[📝 ETL Logging<br/>etl_runs Tabelle]
+    BB --> CC[🔄 Scheduled Updates<br/>GitHub Actions]
+    CC --> B
+
+    %% Styling
+    classDef source fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef process fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef storage fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    classDef ml fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef app fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    classDef user fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+
+    class A source
+    class B,C,D,E,F,G process
+    class H,I,J,K,L,M,N storage
+    class O,P,Q ml
+    class R,S,T storage
+    class U,V,W,X,Y app
+    class Z,AA user
+    class BB,CC process
+```
+
+**Data Flow Overview**: This diagram shows the complete data pipeline from web scraping Unisport website data through database storage, ML training, and user interface display. The system includes automated ETL processes, machine learning recommendations, and real-time filtering.
+
 ## Getting Started
 
 ### Prerequisites
@@ -84,6 +167,136 @@ This project fulfills all mandatory course requirements:
 - Optional Google OAuth authentication
 - Personalized filter preferences
 - Session management
+
+## Filter System Architecture
+
+```mermaid
+flowchart TD
+    %% Benutzerinteraktion
+    A[👤 Benutzer] --> B[Streamlit Sidebar]
+
+    %% Sidebar Filter-Komponenten
+    B --> C[🎯 Offer-Filter]
+    B --> D[📅 Event-Filter]
+    B --> E[🤖 ML-Filter]
+
+    C --> F[Intensität<br/>low/moderate/high]
+    C --> G[Focus<br/>strength/endurance/flexibility...]
+    C --> H[Setting<br/>team/solo/duo/competitive...]
+    C --> I[Show Upcoming Only<br/>Boolean]
+
+    D --> J[Sports<br/>Yoga, Fitness, etc.]
+    D --> K[Weekdays<br/>Monday, Tuesday, ...]
+    D --> L[Time Range<br/>Start-End Time]
+    D --> M[Date Range<br/>Start-End Date]
+    D --> N[Locations<br/>Gym A, Hall B, ...]
+    D --> O[Hide Cancelled<br/>Boolean]
+
+    E --> P[Min Match Score<br/>0-100%]
+    E --> Q[ML Min Match<br/>Threshold für KNN]
+
+    %% Session State Speicherung
+    F --> R[(Session State)]
+    G --> R
+    H --> R
+    I --> R
+    J --> R
+    K --> R
+    L --> R
+    M --> R
+    N --> R
+    O --> R
+    P --> R
+    Q --> R
+
+    %% Filter-Verarbeitung
+    R --> S[get_filter_values_from_session()]
+    S --> T{Filter Typ<br/>prüfen}
+
+    T -->|Offer-Filter aktiv| U[filter_offers()<br/>Hard Filter: intensity/focus/setting]
+    T -->|Event-Filter aktiv| V[filter_events()<br/>Event-Level Filter]
+    T -->|Beide aktiv| W[load_and_filter_offers()<br/>+ load_and_filter_events()]
+
+    %% Offer-Filtering Prozess
+    U --> X[100% Match Score<br/>für gefilterte Offers]
+    X --> Y[apply_ml_recommendations_to_offers()]
+    Y --> Z[KNN Model laden]
+    Z --> AA[User Preferences<br/>aus Filtern extrahieren]
+    AA --> BB[Feature Vector bauen]
+    BB --> CC[KNN Neighbors finden<br/>Ähnliche Sportarten]
+    CC --> DD[Match Scores berechnen<br/>0-100% basierend auf Distanz]
+    DD --> EE[Merge: Hard + ML Results<br/>Höherer Score gewinnt]
+
+    %% Event-Filtering Prozess
+    V --> FF[_check_event_matches_filters()]
+    FF --> GG{Sport Filter?}
+    GG -->|Ja| HH[sport_name in selected_sports]
+    GG -->|Nein| II{Next: Hide Cancelled?}
+
+    II -->|Ja| JJ[event.canceled == False]
+    II -->|Nein| KK{Next: Weekday?}
+
+    KK -->|Ja| LL[start_time.strftime('%A')<br/>in selected_weekdays]
+    KK -->|Nein| MM{Next: Date Range?}
+
+    MM -->|Ja| NN[event_date in [date_start, date_end]]
+    MM -->|Nein| OO{Next: Time Range?}
+
+    OO -->|Ja| PP[event_time in [time_start, time_end]]
+    OO -->|Nein| QQ{Next: Location?}
+
+    QQ -->|Ja| RR[location_name in selected_locations]
+    QQ -->|Nein| SS[✅ Event matches ALL filters<br/>AND Logic]
+
+    %% Soft Filter Anwendung
+    EE --> TT[apply_soft_filters_to_score()]
+    SS --> TT
+
+    TT --> UU{Future Events Check<br/>show_upcoming_only?}
+    UU -->|Ja, keine Events| VV[Score -20%]
+    UU -->|Nein| WW{Event Filter Match?}
+
+    WW -->|Nein, Events vorhanden| XX[Score -15%]
+    WW -->|Ja| YY[Score unverändert]
+
+    VV --> ZZ[Score ≥ min_match_score?]
+    XX --> ZZ
+    YY --> ZZ
+
+    ZZ -->|Ja| AAA[✅ Offer/Event angezeigt]
+    ZZ -->|Nein| BBB[❌ Offer/Event ausgeblendet]
+
+    %% Kombinierte Filterung
+    W --> CCC[Offer-Filter anwenden]
+    W --> DDD[Event-Filter anwenden]
+    CCC --> TT
+    DDD --> TT
+
+    %% UI-Anzeige
+    AAA --> EEE[📊 Streamlit UI<br/>Sports Overview]
+    EEE --> FFF[Match Score Anzeige<br/>Farbcodierung]
+    EEE --> GGG[Sortierung<br/>Nach Score absteigend]
+
+    %% Styling
+    classDef user fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef input fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef logic fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef storage fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    classDef ml fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef ui fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+
+    class A user
+    class B,C,D,E input
+    class F,G,H,I,J,K,L,M,N,O,P,Q input
+    class S,U,V,W,FF,TT process
+    class T,GG,II,KK,MM,OO,QQ,UU,WW,ZZ logic
+    class R storage
+    class Y,Z,AA,BB,CC,DD,EE ml
+    class EEE,FFF,GGG ui
+```
+
+**Filter System Overview**: This diagram illustrates the sophisticated filtering architecture with offer-level (sports characteristics) and event-level (specific dates/times) filters, combined with KNN-based ML recommendations. The system uses AND logic for hard filtering and score reduction for soft filtering to ensure relevant results.
 
 ## Technologies Used
 
